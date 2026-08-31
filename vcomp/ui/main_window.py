@@ -23,7 +23,9 @@ from PySide6.QtWidgets import (
 from vcomp.media.probe import MediaInfo
 from vcomp.ui import theme
 from vcomp.ui.frame_fetcher import FrameFetcher
+from vcomp.ui.render_worker import RenderWorker
 from vcomp.ui.timeline import Timeline
+from vcomp.ui.viewport_output import OutputViewport
 from vcomp.ui.viewport_source import SourceViewport
 from vcomp.util.settings import Settings
 
@@ -55,13 +57,20 @@ class MainWindow(QMainWindow):
         self.fetcher.opened.connect(self._on_opened)
         self.fetcher.frameReady.connect(self._on_frame)
         self.fetcher.failed.connect(self._on_fail)
-        self.fetcher.start()
+
+        self.renderer = RenderWorker()
+        self.renderer.ready.connect(self._on_gl_ready)
+        self.renderer.frameComposited.connect(self._on_composited)
+        self.renderer.failed.connect(self._on_fail)
 
         self._build_menus()
         self._build_docks()
         self._build_statusbar()
         self._install_shortcuts()
         self._restore_layout()
+
+        self.fetcher.start()
+        self.renderer.start()
 
     # ------------------------------------------------------------------ menus
     def _build_menus(self) -> None:
@@ -108,9 +117,10 @@ class MainWindow(QMainWindow):
 
         self.dock_source = self._dock("Source Viewport (16:9)", "source",
                                       Qt.DockWidgetArea.LeftDockWidgetArea, self.source_view)
+        self.output_view = OutputViewport()
         self.dock_output = self._dock("Output Viewport (9:16)", "output",
                                       Qt.DockWidgetArea.RightDockWidgetArea,
-                                      _placeholder("Output Viewport\n(M2)"))
+                                      self.output_view)
         self.dock_timeline = self._dock("Timeline", "timeline",
                                         Qt.DockWidgetArea.BottomDockWidgetArea, self.timeline)
         self.dock_nodes = self._dock("Node Canvas", "nodes",
@@ -192,7 +202,16 @@ class MainWindow(QMainWindow):
     def _on_frame(self, index: int, arr: np.ndarray) -> None:
         if index == self.timeline.frame:
             self.source_view.set_frame(arr)
+            self.renderer.submit(index, arr)
         self.timeline.set_cache_state(self.fetcher.cached_indices())
+
+    def _on_composited(self, index: int, arr: np.ndarray) -> None:
+        if index == self.timeline.frame:
+            self.output_view.set_frame(arr)
+
+    def _on_gl_ready(self, renderer: str) -> None:
+        self.lbl_gpu.setText(f"GPU: {renderer[:40]}")
+        self.set_status("GL renderer ready")
 
     def _on_fail(self, msg: str) -> None:
         self.set_status(f"error: {msg}")
@@ -213,6 +232,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: N802
         self.timeline.set_playing(False)
         self.fetcher.stop()
+        self.renderer.stop()
         self.settings.set("window_geometry",
                           base64.b64encode(bytes(self.saveGeometry())).decode("ascii"))
         self.settings.set("window_layout",

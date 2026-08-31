@@ -3,8 +3,9 @@
 Node-based compositor that turns 16:9 gameplay recordings into 9:16 vertical
 clips **without cropping away the HUD**. Windows desktop app.
 
-Status: **M1 — media + preview**. Open a clip, scrub, play, step frames; VFR
-sources resolved by PTS. No compositing yet.
+Status: **M2 — render core**. moderngl offscreen compositor (FBO pool, blend
+modes, readback) renders gameplay letterboxed on a solid background into the
+output viewport. One renderer, shared by preview and (later) export.
 
 ## Dev setup
 
