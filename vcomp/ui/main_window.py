@@ -1,16 +1,12 @@
-"""Main window: menus, dockable panels, status bar, and (M1) media playback.
-
-Source viewport + transport are live. Output viewport, node canvas and
-properties remain placeholders until M2/M3.
-"""
+"""Main window: menus, docks, media playback, node graph, properties, undo."""
 from __future__ import annotations
 
 import base64
 import logging
 
 import numpy as np
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QKeySequence, QUndoStack
 from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
@@ -20,9 +16,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from vcomp.core.graph import Graph, build_default_graph
 from vcomp.media.probe import MediaInfo
+from vcomp.nodes.registry import by_category, load_builtin_nodes
 from vcomp.ui import theme
 from vcomp.ui.frame_fetcher import FrameFetcher
+from vcomp.ui.node_canvas import NodeCanvas
+from vcomp.ui.properties import PropertiesPanel
 from vcomp.ui.render_worker import RenderWorker
 from vcomp.ui.timeline import Timeline
 from vcomp.ui.viewport_output import OutputViewport
@@ -38,7 +38,6 @@ def _placeholder(text: str) -> QWidget:
     w = QLabel(text)
     w.setAlignment(Qt.AlignmentFlag.AlignCenter)
     w.setStyleSheet(f"color:{theme.TEXT_DIM}; font-size:13px;")
-    w.setMinimumSize(200, 120)
     return w
 
 
@@ -49,9 +48,19 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("VCOMP")
         self.resize(1600, 950)
 
+        load_builtin_nodes()
+        self.graph = Graph()
+        build_default_graph(self.graph)
+        self.undo_stack = QUndoStack(self)
+
         self._info: MediaInfo | None = None
-        self._pending_seek: int | None = None
-        self._awaiting = False
+        self._last_frame: np.ndarray | None = None
+
+        self._rerender = QTimer(self)
+        self._rerender.setSingleShot(True)
+        self._rerender.setInterval(30)
+        self._rerender.timeout.connect(self._render_current)
+        self.graph.on_changed.append(self._on_graph_changed)
 
         self.fetcher = FrameFetcher()
         self.fetcher.opened.connect(self._on_opened)
@@ -59,6 +68,7 @@ class MainWindow(QMainWindow):
         self.fetcher.failed.connect(self._on_fail)
 
         self.renderer = RenderWorker()
+        self.renderer.set_graph(self.graph)
         self.renderer.ready.connect(self._on_gl_ready)
         self.renderer.frameComposited.connect(self._on_composited)
         self.renderer.failed.connect(self._on_fail)
@@ -69,35 +79,45 @@ class MainWindow(QMainWindow):
         self._install_shortcuts()
         self._restore_layout()
 
+        self.canvas.sync_from_core()
         self.fetcher.start()
         self.renderer.start()
 
     # ------------------------------------------------------------------ menus
     def _build_menus(self) -> None:
         mb = self.menuBar()
-        file_menu = mb.addMenu("&File")
-        self._add(file_menu, "New", "Ctrl+N", self._todo)
-        self._add(file_menu, "Open Clip...", "Ctrl+O", self._open_clip)
-        file_menu.addSeparator()
-        self._add(file_menu, "Save", "Ctrl+S", self._todo)
-        self._add(file_menu, "Save As...", "Ctrl+Shift+S", self._todo)
-        file_menu.addSeparator()
-        self._add(file_menu, "Export...", "Ctrl+E", self._todo)
-        file_menu.addSeparator()
-        self._add(file_menu, "Quit", "Ctrl+Q", self.close)
+        f = mb.addMenu("&File")
+        self._add(f, "New", "Ctrl+N", self._todo)
+        self._add(f, "Open Clip...", "Ctrl+O", self._open_clip)
+        f.addSeparator()
+        self._add(f, "Save", "Ctrl+S", self._todo)
+        self._add(f, "Export...", "Ctrl+E", self._todo)
+        f.addSeparator()
+        self._add(f, "Quit", "Ctrl+Q", self.close)
 
-        edit_menu = mb.addMenu("&Edit")
-        self._add(edit_menu, "Undo", "Ctrl+Z", self._todo)
-        self._add(edit_menu, "Redo", "Ctrl+Shift+Z", self._todo)
+        e = mb.addMenu("&Edit")
+        undo = self.undo_stack.createUndoAction(self, "Undo")
+        undo.setShortcut(QKeySequence("Ctrl+Z"))
+        redo = self.undo_stack.createRedoAction(self, "Redo")
+        redo.setShortcut(QKeySequence("Ctrl+Shift+Z"))
+        e.addAction(undo)
+        e.addAction(redo)
 
-        mb.addMenu("&Node")
+        node_menu = mb.addMenu("&Node")
+        for cat, types in by_category().items():
+            sub = node_menu.addMenu(cat)
+            for vt in types:
+                act = QAction(vt.title_default, self)
+                act.triggered.connect(lambda _=False, tn=vt.type_name: self._add_node(tn))
+                sub.addAction(act)
+
         tpl = mb.addMenu("&Template")
         self._add(tpl, "Save as Template", "Ctrl+T", self._todo)
         self._add(tpl, "Template Browser", "Ctrl+Shift+T", self._todo)
         mb.addMenu("&Render")
         self._view_menu = mb.addMenu("&View")
-        help_menu = mb.addMenu("&Help")
-        self._add(help_menu, "About VCOMP", None, self._about)
+        h = mb.addMenu("&Help")
+        self._add(h, "About VCOMP", None, self._about)
 
     def _add(self, menu, text, shortcut, slot) -> QAction:
         act = QAction(text, self)
@@ -112,23 +132,26 @@ class MainWindow(QMainWindow):
         self.setDockNestingEnabled(True)
 
         self.source_view = SourceViewport()
+        self.output_view = OutputViewport()
         self.timeline = Timeline()
         self.timeline.frameChanged.connect(self._request_frame)
 
+        self.canvas = NodeCanvas(self.graph, self.undo_stack)
+        self.canvas.nodeSelected.connect(self._on_node_selected)
+        self.canvas.status.connect(self.set_status)
+
+        self.props = PropertiesPanel(self.graph, self.undo_stack)
+
         self.dock_source = self._dock("Source Viewport (16:9)", "source",
                                       Qt.DockWidgetArea.LeftDockWidgetArea, self.source_view)
-        self.output_view = OutputViewport()
         self.dock_output = self._dock("Output Viewport (9:16)", "output",
-                                      Qt.DockWidgetArea.RightDockWidgetArea,
-                                      self.output_view)
+                                      Qt.DockWidgetArea.RightDockWidgetArea, self.output_view)
         self.dock_timeline = self._dock("Timeline", "timeline",
                                         Qt.DockWidgetArea.BottomDockWidgetArea, self.timeline)
         self.dock_nodes = self._dock("Node Canvas", "nodes",
-                                     Qt.DockWidgetArea.BottomDockWidgetArea,
-                                     _placeholder("Node Canvas\n(M3)"))
+                                     Qt.DockWidgetArea.BottomDockWidgetArea, self.canvas.widget)
         self.dock_props = self._dock("Properties", "props",
-                                     Qt.DockWidgetArea.RightDockWidgetArea,
-                                     _placeholder("Properties\n(M3)"))
+                                     Qt.DockWidgetArea.RightDockWidgetArea, self.props)
         self.splitDockWidget(self.dock_nodes, self.dock_props, Qt.Orientation.Horizontal)
 
     def _dock(self, title, obj, area, widget) -> QDockWidget:
@@ -145,7 +168,7 @@ class MainWindow(QMainWindow):
         self.lbl_source = QLabel("no clip")
         self.lbl_playhead = QLabel("f0")
         self.lbl_preview = QLabel("Preview 1x")
-        self.lbl_gpu = QLabel("GPU: - (M2)")
+        self.lbl_gpu = QLabel("GPU: -")
         self.lbl_action = QLabel("ready")
         for w in (self.lbl_source, self.lbl_playhead, self.lbl_preview, self.lbl_gpu):
             sb.addPermanentWidget(w)
@@ -168,30 +191,42 @@ class MainWindow(QMainWindow):
         sc(".", lambda: self.timeline.seek(self.timeline.frame + 1))
         sc("Home", lambda: self.timeline.seek(self.timeline.in_point))
         sc("End", lambda: self.timeline.seek(self.timeline.out_point))
-        sc("I", lambda: self.timeline.btn_in.click())
-        sc("O", lambda: self.timeline.btn_out.click())
+
+    # ----------------------------------------------------------------- nodes
+    def _add_node(self, type_name: str) -> None:
+        try:
+            self.canvas.add_node_by_type(type_name)
+            self.set_status(f"added {type_name}")
+        except Exception as exc:  # noqa: BLE001
+            self.set_status(f"cannot add {type_name}: {exc}")
+
+    def _on_node_selected(self, cid) -> None:
+        self.props.show_node(cid)
+
+    def _on_graph_changed(self) -> None:
+        self.props.refresh()
+        self._rerender.start()
 
     # ----------------------------------------------------------------- media
     def _open_clip(self) -> None:
-        start = ""
         recent = self.settings.get("recent_files", [])
-        if recent:
-            start = recent[0]
+        start = recent[0] if recent else ""
         path, _ = QFileDialog.getOpenFileName(self, "Open Clip", start, _VIDEO_FILTER)
-        if not path:
-            return
-        self.set_status(f"opening {path} ...")
-        self.fetcher.open(path)
+        if path:
+            self.set_status(f"opening {path} ...")
+            self.fetcher.open(path)
 
     def _on_opened(self, info: MediaInfo) -> None:
         self._info = info
         self.settings.add_recent_file(info.path)
         self.settings.save()
         self.timeline.set_media(info.frame_count, info.fps)
+        for node in self.graph.clip_source_nodes():
+            node.params["file_path"].set(info.path)
+            node.params["out_point"].set(info.duration)
+            node.set_media_info(info.width, info.height, info.fps, info.duration)
         vfr = " VFR" if info.is_vfr else ""
-        self.lbl_source.setText(
-            f"{info.width}x{info.height}  {info.fps:.3f}fps{vfr}  {info.duration:.1f}s"
-        )
+        self.lbl_source.setText(f"{info.width}x{info.height}  {info.fps:.3f}fps{vfr}  {info.duration:.1f}s")
         self.set_status(f"loaded {info.path}")
         self._request_frame(0)
 
@@ -200,10 +235,21 @@ class MainWindow(QMainWindow):
         self.fetcher.request(index)
 
     def _on_frame(self, index: int, arr: np.ndarray) -> None:
-        if index == self.timeline.frame:
-            self.source_view.set_frame(arr)
-            self.renderer.submit(index, arr)
+        if index != self.timeline.frame:
+            self.timeline.set_cache_state(self.fetcher.cached_indices())
+            return
+        self._last_frame = arr
+        self.source_view.set_frame(arr)
+        self._render_current()
         self.timeline.set_cache_state(self.fetcher.cached_indices())
+
+    def _render_current(self) -> None:
+        if self._last_frame is None:
+            return
+        idx = self.timeline.frame
+        fps = self._info.fps if self._info else 30.0
+        frames = {n.id: self._last_frame for n in self.graph.clip_source_nodes()}
+        self.renderer.submit(idx, frames, idx / fps if fps else 0.0)
 
     def _on_composited(self, index: int, arr: np.ndarray) -> None:
         if index == self.timeline.frame:
@@ -215,7 +261,7 @@ class MainWindow(QMainWindow):
 
     def _on_fail(self, msg: str) -> None:
         self.set_status(f"error: {msg}")
-        QMessageBox.critical(self, "VCOMP", f"Media error:\n{msg}")
+        QMessageBox.critical(self, "VCOMP", f"Error:\n{msg}")
 
     # ---------------------------------------------------------------- layout
     def _restore_layout(self) -> None:
@@ -240,10 +286,9 @@ class MainWindow(QMainWindow):
         self.settings.save()
         super().closeEvent(event)
 
-    # ------------------------------------------------------------------ slots
     def _todo(self) -> None:
         self.set_status("not implemented yet")
 
     def _about(self) -> None:
         QMessageBox.about(self, "About VCOMP",
-                          "VCOMP - node-based vertical gameplay compositor.\nMilestone M1.")
+                          "VCOMP - node-based vertical gameplay compositor.\nMilestone M3.")

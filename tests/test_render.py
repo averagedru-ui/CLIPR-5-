@@ -4,30 +4,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-moderngl = pytest.importorskip("moderngl")
-
-try:
-    from vcomp.render.context import RenderContext
-
-    _ctx = RenderContext()
-    _GL_OK = True
-except Exception as exc:  # noqa: BLE001
-    _GL_OK = False
-    _GL_ERR = str(exc)
-
-pytestmark = pytest.mark.skipif(not _GL_OK, reason="no usable GL context")
+pytest.importorskip("moderngl")
 
 
-@pytest.fixture(scope="module")
-def ctx() -> "RenderContext":
-    return _ctx
-
-
-@pytest.fixture(scope="module")
-def compositor(ctx):
-    from vcomp.render.compositor import Compositor
-
-    return Compositor(ctx)
+@pytest.fixture()
+def ctx(gl_ctx):
+    return gl_ctx
 
 
 def test_fbo_pool_reuse(ctx):

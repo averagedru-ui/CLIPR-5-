@@ -1,7 +1,8 @@
-"""Runs the moderngl compositor on its own thread.
+"""Runs the moderngl compositor + graph evaluation on its own thread.
 
 The GL context is thread-affine, so the :class:`Compositor` is created inside the
-worker loop, never on the GUI thread. Requests are coalesced (latest wins).
+worker loop. Requests are coalesced (latest wins). The core graph is shared with
+the GUI thread and guarded by its own lock.
 """
 from __future__ import annotations
 
@@ -14,14 +15,12 @@ log = logging.getLogger("vcomp.renderworker")
 
 class RenderWorker(QObject):
     frameComposited = Signal(int, object)   # index, RGBA numpy (canvas res)
-    ready = Signal(str)                     # GL renderer string
+    ready = Signal(str)
     failed = Signal(str)
 
-    def __init__(self, canvas_w: int = 1080, canvas_h: int = 1920) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.canvas_w = canvas_w
-        self.canvas_h = canvas_h
-
+        self._graph = None
         self._thread = QThread()
         self._thread.setObjectName("RenderWorker")
         self.moveToThread(self._thread)
@@ -30,15 +29,18 @@ class RenderWorker(QObject):
         self._mutex = QMutex()
         self._cond = QWaitCondition()
         self._running = True
-        self._pending: tuple[int, object] | None = None
+        self._pending: tuple | None = None
         self._comp = None
+
+    def set_graph(self, graph) -> None:
+        self._graph = graph
 
     def start(self) -> None:
         self._thread.start()
 
-    def submit(self, index: int, source_rgb) -> None:
+    def submit(self, index: int, frames: dict, t: float) -> None:
         self._mutex.lock()
-        self._pending = (index, source_rgb)
+        self._pending = (index, frames, t)
         self._cond.wakeAll()
         self._mutex.unlock()
 
@@ -69,17 +71,30 @@ class RenderWorker(QObject):
             if not self._running:
                 self._mutex.unlock()
                 break
-            index, src = self._pending
+            index, frames, t = self._pending
             self._pending = None
             self._mutex.unlock()
 
+            if self._graph is None:
+                continue
             try:
-                out = self._comp.render_gameplay_on_solid(
-                    src, self.canvas_w, self.canvas_h
-                )
-                self.frameComposited.emit(index, out)
+                self._render(index, frames, t)
             except Exception as exc:  # noqa: BLE001
                 log.exception("composite failed")
                 self.failed.emit(str(exc))
 
         self._comp.release()
+
+    def _render(self, index: int, frames: dict, t: float) -> None:
+        from vcomp.core.graph import EvalContext
+
+        g = self._graph
+        cw, ch, _rs = g.canvas_params()
+        # preview always renders at 1x; export (M6) uses the Output render_scale
+        ctx = EvalContext(self._comp, t=t, canvas_w=cw, canvas_h=ch,
+                          render_scale=1.0, frames=frames)
+        try:
+            out = g.evaluate(ctx)
+        finally:
+            ctx.release_all()
+        self.frameComposited.emit(index, out)

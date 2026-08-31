@@ -3,9 +3,11 @@
 Node-based compositor that turns 16:9 gameplay recordings into 9:16 vertical
 clips **without cropping away the HUD**. Windows desktop app.
 
-Status: **M2 — render core**. moderngl offscreen compositor (FBO pool, blend
-modes, readback) renders gameplay letterboxed on a solid background into the
-output viewport. One renderer, shared by preview and (later) export.
+Status: **M3 — node system**. Graph model (topo sort, cycle detection, dirty
+propagation, frame cache), NodeGraphQt canvas bridged to the core graph,
+generic properties inspector, undo/redo. Nodes: Clip Source, Main Framing,
+Solid Background, Stack, Output (+ Value/Color). Default graph composites a
+loaded clip live.
 
 ## Dev setup
 

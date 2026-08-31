@@ -48,6 +48,51 @@ class Compositor:
         self.ctx = ctx or RenderContext()
         self._solid = self.ctx.program("fullscreen.vert", "solid.frag")
         self._layer = self.ctx.program("fullscreen.vert", "layer.frag")
+        self._blit = self.ctx.program("fullscreen.vert", "blit.frag")
+        self._compose = self.ctx.program("fullscreen.vert", "compose.frag")
+
+    # ------------------------------------------------------- node-graph ops
+    def fill_solid(self, fbo: moderngl.Framebuffer, color) -> None:
+        fbo.use()
+        self.ctx.ctx.disable(moderngl.BLEND)
+        self._solid["u_color"].value = tuple(color)
+        self.ctx.draw_fullscreen(self._solid)
+
+    def blit(self, fbo: moderngl.Framebuffer, src_tex: moderngl.Texture, *,
+             dest=(0.0, 0.0, 1.0, 1.0), srcrect=(0.0, 0.0, 1.0, 1.0),
+             opacity=1.0, feather=0.0, radius=0.0, flip_h=False, flip_v=False) -> None:
+        fbo.use()
+        fbo.clear(0.0, 0.0, 0.0, 0.0)
+        self.ctx.ctx.disable(moderngl.BLEND)
+        src_tex.use(0)
+        p = self._blit
+        p["u_src"].value = 0
+        p["u_dest"].value = tuple(dest)
+        p["u_srcrect"].value = tuple(srcrect)
+        p["u_opacity"].value = float(opacity)
+        p["u_feather"].value = float(feather)
+        p["u_radius"].value = float(radius)
+        p["u_flip_h"].value = int(flip_h)
+        p["u_flip_v"].value = int(flip_v)
+        self.ctx.draw_fullscreen(p)
+
+    def compose(self, dst: moderngl.Framebuffer, bg_tex: moderngl.Texture,
+                top_tex: moderngl.Texture, *, opacity=1.0,
+                blend: BlendMode = BlendMode.NORMAL) -> None:
+        dst.use()
+        dst.clear(0.0, 0.0, 0.0, 0.0)
+        self.ctx.ctx.disable(moderngl.BLEND)
+        bg_tex.use(0)
+        top_tex.use(1)
+        p = self._compose
+        p["u_bg"].value = 0
+        p["u_top"].value = 1
+        p["u_opacity"].value = float(opacity)
+        p["u_blend"].value = int(blend)
+        self.ctx.draw_fullscreen(p)
+
+    def to_numpy(self, fbo: moderngl.Framebuffer) -> np.ndarray:
+        return read_fbo(fbo, components=4)
 
     # ------------------------------------------------------------------ render
     def render_frame(self, spec: FrameSpec, source_rgb: np.ndarray | None) -> np.ndarray:

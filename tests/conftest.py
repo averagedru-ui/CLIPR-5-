@@ -13,6 +13,30 @@ _ffmpeg_missing = not _FF.exists()
 requires_ffmpeg = pytest.mark.skipif(_ffmpeg_missing, reason="vendored ffmpeg missing")
 
 
+@pytest.fixture(scope="session")
+def gl_ctx():
+    """One shared standalone GL context for the whole test session.
+
+    Multiple ``moderngl`` standalone contexts in a single process fight over the
+    current context, so every GL test must go through this.
+    """
+    try:
+        from vcomp.render.context import RenderContext
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"moderngl unavailable: {exc}")
+    try:
+        return RenderContext()
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"no usable GL context: {exc}")
+
+
+@pytest.fixture(scope="session")
+def compositor(gl_ctx):
+    from vcomp.render.compositor import Compositor
+
+    return Compositor(gl_ctx)
+
+
 def _run(args: list[str]) -> None:
     subprocess.run([str(_FF), "-y", "-hide_banner", "-loglevel", "error", *args],
                    check=True, capture_output=True)
