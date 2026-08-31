@@ -3,8 +3,8 @@
 Node-based compositor that turns 16:9 gameplay recordings into 9:16 vertical
 clips **without cropping away the HUD**. Windows desktop app.
 
-Status: **M0 — scaffold**. Runnable window with dark theme and dockable panels;
-no compositing yet.
+Status: **M1 — media + preview**. Open a clip, scrub, play, step frames; VFR
+sources resolved by PTS. No compositing yet.
 
 ## Dev setup
 
