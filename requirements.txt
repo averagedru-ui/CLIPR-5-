@@ -1,0 +1,12 @@
+# VCOMP runtime + dev dependencies (Python 3.11, 64-bit)
+PySide6==6.11.2
+numpy
+moderngl==5.12.0
+moderngl-window
+av==18.1.0
+NodeGraphQt
+Qt.py
+
+# packaging / test
+pyinstaller
+pytest
