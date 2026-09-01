@@ -61,7 +61,7 @@ class MainWindow(QMainWindow):
 
         self._rerender = QTimer(self)
         self._rerender.setSingleShot(True)
-        self._rerender.setInterval(30)
+        self._rerender.setInterval(16)
         self._rerender.timeout.connect(self._render_current)
         self.graph.on_changed.append(self._on_graph_changed)
 

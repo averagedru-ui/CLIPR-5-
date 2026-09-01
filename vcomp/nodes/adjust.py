@@ -46,8 +46,14 @@ class Transform(_Modifier):
         self.add_param(Param("scale_y", ParamType.FLOAT, 1.0, min=0.02, max=8, step=0.01, group="Transform"))
         self.add_param(Param("rotation", ParamType.FLOAT, 0.0, min=-180, max=180, group="Transform",
                              accepts_input=True))
-        self.add_param(Param("anchor_x", ParamType.FLOAT, 0.5, min=0, max=1, group="Transform"))
-        self.add_param(Param("anchor_y", ParamType.FLOAT, 0.5, min=0, max=1, group="Transform"))
+        self.add_param(Param("skew_x", ParamType.FLOAT, 0.0, min=-1.0, max=1.0, step=0.01,
+                             group="Transform"))
+        self.add_param(Param("skew_y", ParamType.FLOAT, 0.0, min=-1.0, max=1.0, step=0.01,
+                             group="Transform"))
+        self.add_param(Param("anchor_x", ParamType.FLOAT, 0.5, min=0, max=1, step=0.01,
+                             group="Transform"))
+        self.add_param(Param("anchor_y", ParamType.FLOAT, 0.5, min=0, max=1, step=0.01,
+                             group="Transform"))
         self.add_param(Param("resample", ParamType.ENUM, "bilinear",
                              choices=("bilinear", "bicubic", "lanczos"), group="Transform"))
 
@@ -62,6 +68,7 @@ class Transform(_Modifier):
             scale=(self.params["scale_x"].value, self.params["scale_y"].value),
             rotation=math.radians(self.p("rotation", ctx.t, inputs)),
             anchor=(self.params["anchor_x"].value, self.params["anchor_y"].value),
+            skew=(self.params["skew_x"].value, self.params["skew_y"].value),
             fit=0, opacity=1.0,
         )
         return {"image": f.color_attachments[0]}

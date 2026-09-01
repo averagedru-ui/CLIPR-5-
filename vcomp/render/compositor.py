@@ -69,7 +69,8 @@ class Compositor:
 
     def blit(self, fbo: moderngl.Framebuffer, src_tex: moderngl.Texture, *,
              dest=(0.0, 0.0, 1.0, 1.0), srcrect=(0.0, 0.0, 1.0, 1.0),
-             opacity=1.0, feather=0.0, radius=0.0, flip_h=False, flip_v=False) -> None:
+             opacity=1.0, feather=0.0, radius=0.0, rotation=0.0, skew=(0.0, 0.0),
+             flip_h=False, flip_v=False) -> None:
         fbo.use()
         fbo.clear(0.0, 0.0, 0.0, 0.0)
         self.ctx.ctx.disable(moderngl.BLEND)
@@ -81,6 +82,8 @@ class Compositor:
         p["u_opacity"].value = float(opacity)
         p["u_feather"].value = float(feather)
         p["u_radius"].value = float(radius)
+        p["u_rotation"].value = float(rotation)
+        p["u_skew"].value = tuple(skew)
         p["u_flip_h"].value = int(flip_h)
         p["u_flip_v"].value = int(flip_v)
         self.ctx.draw_fullscreen(p)
@@ -260,6 +263,7 @@ class Compositor:
             "u_fit": int(u.get("fit", 0)),
             "u_src_aspect": float(u.get("src_aspect", 1.0)),
             "u_canvas_aspect": float(u.get("canvas_aspect", 0.5625)),
+            "u_skew": tuple(u.get("skew", (0.0, 0.0))),
             "u_opacity": float(u.get("opacity", 1.0)),
         }, tex_uniform="u_src")
 

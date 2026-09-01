@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 from vcomp.core.params import ParamType
 from vcomp.ui import theme
 from vcomp.ui.commands import SetEnabledCmd, SetParamCmd
+from vcomp.ui.widgets import ScrubSlider
 
 
 class PropertiesPanel(QWidget):
@@ -38,6 +39,9 @@ class PropertiesPanel(QWidget):
         self._graph = graph
         self._undo = undo_stack
         self._node_id: str | None = None
+
+        self._widgets: dict[str, QWidget] = {}
+        self._built_key = None
 
         self._body = QWidget()
         self._body_lay = QVBoxLayout(self._body)
@@ -65,6 +69,8 @@ class PropertiesPanel(QWidget):
             return
 
         node = self._graph.nodes[node_id]
+        self._widgets = {}
+        self._built_key = (node_id, tuple(node.params), node.type_name)
         header = QLabel(f"{node.title}  ·  {node.type_name}")
         header.setStyleSheet(f"font-weight:bold; color:{theme.TEXT};")
         self._body_lay.addWidget(header)
@@ -88,11 +94,48 @@ class PropertiesPanel(QWidget):
             for name, param in items:
                 w = self._widget_for(node_id, name, param)
                 if w is not None:
+                    self._widgets[name] = w
                     form.addRow(_label(name), w)
             self._body_lay.addWidget(box)
 
     def refresh(self) -> None:
-        self.show_node(self._node_id)
+        """Rebuild only on a structural change; otherwise sync values in place so
+        a slider being dragged doesn't get torn down mid-drag."""
+        nid = self._node_id
+        if nid is None or nid not in self._graph.nodes:
+            self.show_node(nid)
+            return
+        node = self._graph.nodes[nid]
+        key = (nid, tuple(node.params), node.type_name)
+        if key != self._built_key:
+            self.show_node(nid)
+        else:
+            self.sync_values()
+
+    def sync_values(self) -> None:
+        nid = self._node_id
+        if nid is None or nid not in self._graph.nodes:
+            return
+        node = self._graph.nodes[nid]
+        for name, w in self._widgets.items():
+            if name not in node.params:
+                continue
+            v = node.params[name].value
+            blk = w.blockSignals(True)
+            try:
+                if isinstance(w, ScrubSlider):
+                    w.set_value(float(v))
+                elif isinstance(w, (QSpinBox, QDoubleSpinBox)):
+                    w.setValue(float(v))
+                elif isinstance(w, QComboBox):
+                    w.setCurrentText(str(v))
+                elif isinstance(w, QCheckBox):
+                    w.setChecked(bool(v))
+                elif isinstance(w, QLineEdit):
+                    if not w.hasFocus():
+                        w.setText(str(v))
+            finally:
+                w.blockSignals(blk)
 
     # ------------------------------------------------------------ stack panel
     def _build_stack_panel(self, node_id: str) -> None:
@@ -179,6 +222,11 @@ class PropertiesPanel(QWidget):
             return w
 
         if t is ParamType.INT:
+            if param.min is not None and param.max is not None:
+                w = ScrubSlider(param.min, param.max, int(v), param.step or 1,
+                                integer=True)
+                w.valueChanged.connect(lambda val: self._push(name, int(val)))
+                return w
             w = QSpinBox()
             w.setRange(int(param.min if param.min is not None else -1_000_000),
                        int(param.max if param.max is not None else 1_000_000))
@@ -187,11 +235,14 @@ class PropertiesPanel(QWidget):
             return w
 
         if t is ParamType.FLOAT:
+            if param.min is not None and param.max is not None:
+                w = ScrubSlider(param.min, param.max, float(v), param.step or 0.0)
+                w.valueChanged.connect(lambda val: self._push(name, val))
+                return w
             w = QDoubleSpinBox()
             w.setDecimals(3)
             w.setSingleStep(param.step or 0.01)
-            w.setRange(param.min if param.min is not None else -1e6,
-                       param.max if param.max is not None else 1e6)
+            w.setRange(-1e6, 1e6)
             w.setValue(float(v))
             w.valueChanged.connect(lambda val: self._push(name, val))
             return w

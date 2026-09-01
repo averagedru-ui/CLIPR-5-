@@ -2,15 +2,18 @@
 
 // Place a source texture into a canvas-space quad. Output is straight-alpha
 // RGBA, fully transparent outside the quad. Rounded-corner + feathered edge via
-// a rounded-box SDF evaluated in canvas-normalized units. Used by Main Framing
-// (M3) and, with an added shape switch, HUD Region (M4).
+// a rounded-box SDF. The quad may extend past the canvas [0,1] range - only the
+// on-canvas fragments are shaded, so an up-scaled source overflows the frame
+// (cropped) instead of being squashed to fit.
 
 uniform sampler2D u_src;
-uniform vec4  u_dest;       // x0,y0,x1,y1 canvas [0,1] top-left
+uniform vec4  u_dest;       // x0,y0,x1,y1 canvas [0,1] (top-left origin; may exceed range)
 uniform vec4  u_srcrect;    // u0,v0,u1,v1
 uniform float u_opacity;
 uniform float u_feather;    // canvas-space fraction
 uniform float u_radius;     // corner radius, canvas-space fraction of min(w,h)
+uniform float u_rotation;   // radians, about the quad centre
+uniform vec2  u_skew;       // shear applied to the sampled coordinate
 uniform int   u_flip_h;
 uniform int   u_flip_v;
 
@@ -28,11 +31,16 @@ void main() {
     vec2 span = max(hi - lo, vec2(1e-6));
     vec2 d = (v_uv - lo) / span;                 // 0..1 within quad
 
+    // rotate about the quad centre
+    vec2 c = d - 0.5;
+    float rs = sin(u_rotation), rc = cos(u_rotation);
+    c = mat2(rc, -rs, rs, rc) * c;
+    d = c + 0.5;
+
     if (any(lessThan(d, vec2(-0.5))) || any(greaterThan(d, vec2(1.5)))) {
         discard;
     }
 
-    // SDF in units of the quad's shorter side
     float aspect = span.x / span.y;
     vec2 p = (d - 0.5);
     vec2 half_size = vec2(0.5);
@@ -47,6 +55,8 @@ void main() {
     if (cov <= 0.0) discard;
 
     vec2 sd = clamp(d, 0.0, 1.0);
+    sd.x += (sd.y - 0.5) * u_skew.x;
+    sd.y += (sd.x - 0.5) * u_skew.y;
     if (u_flip_h == 1) sd.x = 1.0 - sd.x;
     if (u_flip_v == 1) sd.y = 1.0 - sd.y;
     vec2 uv = mix(u_srcrect.xy, u_srcrect.zw, sd);

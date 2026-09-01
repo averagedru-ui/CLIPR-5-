@@ -13,6 +13,7 @@ uniform vec2  u_anchor;        // 0..1 within the canvas
 uniform int   u_fit;           // 0 none, 1 cover, 2 contain, 3 stretch, 4 tile, 5 mirror
 uniform float u_src_aspect;    // w/h of the source
 uniform float u_canvas_aspect; // w/h of the canvas
+uniform vec2  u_skew;          // shear
 uniform float u_opacity;
 
 in  vec2 v_uv;
@@ -29,6 +30,8 @@ void main() {
 
     float cs = cos(u_rotation), sn = sin(u_rotation);
     p = mat2(cs, -sn, sn, cs) * p;
+    p.x += p.y * u_skew.x;
+    p.y += p.x * u_skew.y;
     p /= max(u_scale, vec2(1e-4));
     p /= max(fit, vec2(1e-4));
     vec2 uv = p + u_anchor;
