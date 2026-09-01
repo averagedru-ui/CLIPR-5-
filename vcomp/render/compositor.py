@@ -54,6 +54,11 @@ class Compositor:
         self._blur = self.ctx.program("fullscreen.vert", "blur.frag")
         self._plate = self.ctx.program("fullscreen.vert", "plate.frag")
         self._shadow = self.ctx.program("fullscreen.vert", "shadow.frag")
+        self._gradient = self.ctx.program("fullscreen.vert", "gradient.frag")
+        self._adjust = self.ctx.program("fullscreen.vert", "adjust.frag")
+        self._key = self.ctx.program("fullscreen.vert", "key.frag")
+        self._bgfx = self.ctx.program("fullscreen.vert", "bgfx.frag")
+        self._sample = self.ctx.program("fullscreen.vert", "sample.frag")
 
     # ------------------------------------------------------- node-graph ops
     def fill_solid(self, fbo: moderngl.Framebuffer, color) -> None:
@@ -174,6 +179,93 @@ class Compositor:
         p["u_opacity"].value = float(opacity)
         self.ctx.draw_fullscreen(p)
 
+    # --------------------------------------------------------- M5 ops
+    def _run1(self, prog, fbo, tex, uniforms: dict, tex_uniform: str = "u_tex") -> None:
+        fbo.use()
+        fbo.clear(0, 0, 0, 0)
+        self.ctx.ctx.disable(moderngl.BLEND)
+        if tex is not None:
+            tex.use(0)
+            if tex_uniform in prog:
+                prog[tex_uniform].value = 0
+        for k, v in uniforms.items():
+            if k in prog:
+                prog[k].value = v
+        self.ctx.draw_fullscreen(prog)
+
+    def gradient(self, fbo, *, gtype, angle, center, radius, stops, interp, dither) -> None:
+        p = self._gradient
+        n = min(8, len(stops))
+        pos = [0.0] * 8
+        cols = [(0.0, 0.0, 0.0, 1.0)] * 8
+        for i in range(n):
+            pos[i] = float(stops[i][0])
+            cols[i] = tuple(stops[i][1])
+        fbo.use()
+        fbo.clear(0, 0, 0, 0)
+        self.ctx.ctx.disable(moderngl.BLEND)
+        p["u_type"].value = int(gtype)
+        p["u_angle"].value = float(angle)
+        p["u_center"].value = tuple(center)
+        p["u_radius"].value = float(radius)
+        p["u_count"].value = int(n)
+        p["u_pos"].value = pos
+        p["u_col"].write(_f32(cols))
+        p["u_interp"].value = int(interp)
+        p["u_dither"].value = int(dither)
+        self.ctx.draw_fullscreen(p)
+
+    def color_adjust(self, fbo, tex, **u) -> None:
+        self._run1(self._adjust, fbo, tex, {
+            "u_exposure": float(u.get("exposure", 0.0)),
+            "u_contrast": float(u.get("contrast", 1.0)),
+            "u_saturation": float(u.get("saturation", 1.0)),
+            "u_temperature": float(u.get("temperature", 0.0)),
+            "u_tint": float(u.get("tint", 0.0)),
+            "u_lift": tuple(u.get("lift", (0, 0, 0))),
+            "u_gamma": tuple(u.get("gamma", (1, 1, 1))),
+            "u_gain": tuple(u.get("gain", (1, 1, 1))),
+            "u_hue_shift": float(u.get("hue_shift", 0.0)),
+        })
+
+    def key(self, fbo, tex, **u) -> None:
+        self._run1(self._key, fbo, tex, {
+            "u_mode": int(u.get("mode", 0)),
+            "u_key": tuple(u.get("key", (0, 1, 0))),
+            "u_tolerance": float(u.get("tolerance", 0.1)),
+            "u_softness": float(u.get("softness", 0.1)),
+            "u_spill": float(u.get("spill", 0.0)),
+            "u_despill": float(u.get("despill", 0.0)),
+            "u_invert": int(u.get("invert", 0)),
+        })
+
+    def bgfx(self, fbo, tex, **u) -> None:
+        self._run1(self._bgfx, fbo, tex, {
+            "u_brightness": float(u.get("brightness", 1.0)),
+            "u_saturation": float(u.get("saturation", 1.0)),
+            "u_contrast": float(u.get("contrast", 1.0)),
+            "u_tint": tuple(u.get("tint", (1, 1, 1))),
+            "u_tint_amount": float(u.get("tint_amount", 0.0)),
+            "u_overlay": tuple(u.get("overlay", (0, 0, 0, 0))),
+            "u_vignette": float(u.get("vignette", 0.0)),
+            "u_vignette_soft": float(u.get("vignette_soft", 0.25)),
+        })
+
+    def sample(self, fbo, tex, **u) -> None:
+        self._run1(self._sample, fbo, tex, {
+            "u_translate": tuple(u.get("translate", (0.0, 0.0))),
+            "u_scale": tuple(u.get("scale", (1.0, 1.0))),
+            "u_rotation": float(u.get("rotation", 0.0)),
+            "u_anchor": tuple(u.get("anchor", (0.5, 0.5))),
+            "u_fit": int(u.get("fit", 0)),
+            "u_src_aspect": float(u.get("src_aspect", 1.0)),
+            "u_canvas_aspect": float(u.get("canvas_aspect", 0.5625)),
+            "u_opacity": float(u.get("opacity", 1.0)),
+        }, tex_uniform="u_src")
+
+    def blur_tex(self, tex, radius_px, w, h, out_fbo, tmp_fbo) -> None:
+        self.gaussian_blur(tex, radius_px, w, h, out_fbo, tmp_fbo)
+
     # ------------------------------------------------------------------ render
     def render_frame(self, spec: FrameSpec, source_rgb: np.ndarray | None) -> np.ndarray:
         rs = max(0.25, spec.render_scale)
@@ -235,6 +327,10 @@ class Compositor:
 
     def release(self) -> None:
         self.ctx.release()
+
+
+def _f32(rows) -> bytes:
+    return np.asarray(rows, dtype="f4").tobytes()
 
 
 def _even(n: int) -> int:

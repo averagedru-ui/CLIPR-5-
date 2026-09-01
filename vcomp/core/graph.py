@@ -328,6 +328,21 @@ class Graph:
     def clip_source_nodes(self) -> list[VNode]:
         return [n for n in self.nodes.values() if n.type_name == "Clip Source"]
 
+    def incoming_ordered(self, node_id: str, port: str) -> list[Connection]:
+        return [c for c in self.connections if c.to_node == node_id and c.to_port == port]
+
+    def reorder_multi_input(self, node_id: str, port: str, new_order: list[str]) -> None:
+        """Reorder the connections feeding a multi-input port. ``new_order`` is a
+        list of ``from_node`` ids in the desired bottom-to-top order."""
+        with self.lock:
+            rel = self.incoming_ordered(node_id, port)
+            rest = [c for c in self.connections if c not in rel]
+            by_from = {c.from_node: c for c in rel}
+            reordered = [by_from[f] for f in new_order if f in by_from]
+            reordered += [c for c in rel if c not in reordered]
+            self.connections = rest + reordered
+            self._notify()
+
 
 def build_default_graph(g: Graph) -> Graph:
     """Clip Source -> Main Framing -> Stack ; Solid Background -> Stack ; Stack -> Output."""

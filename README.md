@@ -3,11 +3,11 @@
 Node-based compositor that turns 16:9 gameplay recordings into 9:16 vertical
 clips **without cropping away the HUD**. Windows desktop app.
 
-Status: **M4 — masks**. HUD Region node (rect / rounded / ellipse / polygon,
-SDF feather, dilate/erode, plate, outline, drop shadow). Draw-to-create in the
-source viewport (hold M + drag); 8-handle resize + move + snapping in the source
-view; move / scale / rotate handles + snapping in the output view; eyedropper;
-resolution-independent region remapping in `core/coords.py`.
+Status: **M5 — backgrounds & modifiers**. Blur Background (downsampled gaussian,
+look pass), Gradient Background (oklab + dither), Image Background, Transform,
+Color Adjust, Blur, Key, Opacity, Text (QPainter raster), Facecam, Bar Layout,
+Time, Expression (AST-sandboxed). Stack layer-list inspector with per-layer
+opacity / blend / reorder / visibility.
 
 ## Dev setup
 

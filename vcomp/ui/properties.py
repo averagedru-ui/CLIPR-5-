@@ -69,6 +69,10 @@ class PropertiesPanel(QWidget):
         header.setStyleSheet(f"font-weight:bold; color:{theme.TEXT};")
         self._body_lay.addWidget(header)
 
+        if node.type_name == "Stack":
+            self._build_stack_panel(node_id)
+            return
+
         en = QCheckBox("enabled")
         en.setChecked(node.enabled)
         en.toggled.connect(lambda v: self._undo.push(SetEnabledCmd(self._graph, node_id, v)))
@@ -89,6 +93,76 @@ class PropertiesPanel(QWidget):
 
     def refresh(self) -> None:
         self.show_node(self._node_id)
+
+    # ------------------------------------------------------------ stack panel
+    def _build_stack_panel(self, node_id: str) -> None:
+        from vcomp.render.blend import BlendMode
+
+        node = self._graph.nodes[node_id]
+        conns = self._graph.incoming_ordered(node_id, "layers")
+        ops = [x for x in str(node.params["opacities"].value).split(",") if x != ""]
+        bls = [x for x in str(node.params["blends"].value).split(",") if x != ""]
+
+        info = QLabel("Layers (bottom → top)")
+        info.setStyleSheet(f"color:{theme.TEXT_DIM};")
+        self._body_lay.addWidget(info)
+
+        n = len(conns)
+        op_spins, bl_combos = [], []
+        for i, c in enumerate(conns):
+            up = self._graph.nodes.get(c.from_node)
+            box = QGroupBox(up.title if up else c.from_node)
+            row = QFormLayout(box)
+
+            eye = QCheckBox("visible")
+            eye.setChecked(up.enabled if up else True)
+            eye.toggled.connect(lambda v, nid=c.from_node: self._undo.push(
+                SetEnabledCmd(self._graph, nid, v)))
+            row.addRow(eye)
+
+            osp = QDoubleSpinBox()
+            osp.setRange(0.0, 1.0)
+            osp.setSingleStep(0.05)
+            osp.setValue(float(ops[i]) if i < len(ops) else 1.0)
+            op_spins.append(osp)
+            row.addRow("opacity", osp)
+
+            bc = QComboBox()
+            bc.addItems([b.name.lower() for b in BlendMode])
+            bc.setCurrentText(bls[i] if i < len(bls) else "normal")
+            bl_combos.append(bc)
+            row.addRow("blend", bc)
+
+            up_btn = QPushButton("move up")
+            up_btn.setEnabled(i < n - 1)
+            up_btn.clicked.connect(lambda _=False, idx=i: self._reorder_stack(node_id, idx, idx + 1))
+            dn_btn = QPushButton("move down")
+            dn_btn.setEnabled(i > 0)
+            dn_btn.clicked.connect(lambda _=False, idx=i: self._reorder_stack(node_id, idx, idx - 1))
+            hb = QHBoxLayout()
+            hb.addWidget(dn_btn)
+            hb.addWidget(up_btn)
+            row.addRow(hb)
+            self._body_lay.addWidget(box)
+
+        def commit_rows():
+            self._undo.push(SetParamCmd(self._graph, node_id, "opacities",
+                                        ",".join(f"{s.value():.3f}" for s in op_spins)))
+            self._undo.push(SetParamCmd(self._graph, node_id, "blends",
+                                        ",".join(c.currentText() for c in bl_combos)))
+
+        for s in op_spins:
+            s.valueChanged.connect(lambda *_: commit_rows())
+        for c in bl_combos:
+            c.currentTextChanged.connect(lambda *_: commit_rows())
+
+    def _reorder_stack(self, node_id: str, i: int, j: int) -> None:
+        conns = self._graph.incoming_ordered(node_id, "layers")
+        order = [c.from_node for c in conns]
+        if 0 <= i < len(order) and 0 <= j < len(order):
+            order[i], order[j] = order[j], order[i]
+            self._graph.reorder_multi_input(node_id, "layers", order)
+            self.refresh()
 
     # ------------------------------------------------------------- widgets
     def _push(self, name: str, value: Any) -> None:
