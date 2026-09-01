@@ -11,10 +11,14 @@ import logging
 import re
 from typing import Callable
 
-from NodeGraphQt import BaseNode, NodeGraph
-from PySide6.QtCore import QObject, Signal
+import numpy as np
+from NodeGraphQt import BaseNode, NodeBaseWidget, NodeGraph
+from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtWidgets import QLabel
 
 from vcomp.core.graph import Connection, Graph
+from vcomp.core.params import WireType
 from vcomp.nodes.registry import all_types, get as get_vtype
 from vcomp.ui import commands as cmd
 
@@ -23,28 +27,76 @@ log = logging.getLogger("vcomp.canvas")
 _IDENT = "vcomp"
 _PFX = "vc_"   # NodeGraphQt reserves names like 'color', 'border_color', 'width'
 
+_WIRE_COLOR = {
+    WireType.IMAGE: (90, 150, 240),
+    WireType.NUMBER: (170, 170, 170),
+    WireType.COLOR: (235, 205, 90),
+    WireType.RECT: (240, 150, 70),
+    WireType.AUDIO: (110, 210, 130),
+}
+
 
 def _clsname(type_name: str) -> str:
     return re.sub(r"\W", "", type_name.title().replace(" ", ""))
+
+
+_THUMB_W, _THUMB_H = 64, 114
+
+
+class ThumbWidget(NodeBaseWidget):
+    """A small live preview of a node's Image output, embedded in the node body."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.set_name("vc_thumb")
+        self._label = QLabel()
+        self._label.setFixedSize(_THUMB_W, _THUMB_H)
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._label.setStyleSheet("background:#0d0d10; border:1px solid #2a2a30;")
+        self.set_custom_widget(self._label)
+
+    def get_value(self):
+        return ""
+
+    def set_value(self, _v):
+        pass
+
+    def set_array(self, arr: np.ndarray) -> None:
+        h, w = arr.shape[:2]
+        img = QImage(np.ascontiguousarray(arr).data, w, h, 4 * w,
+                     QImage.Format.Format_RGBA8888).copy()
+        self._label.setPixmap(QPixmap.fromImage(img))
+
+    def clear(self) -> None:
+        self._label.clear()
 
 
 def _build_ngqt_classes() -> dict[str, type]:
     out: dict[str, type] = {}
     for vtype in all_types():
         probe = vtype("_probe")
-        ins = [(p.name, p.multi) for p in probe.inputs]
-        outs = [p.name for p in probe.outputs]
+        ins = [(p.name, p.multi, _WIRE_COLOR.get(p.wire, (150, 150, 150))) for p in probe.inputs]
+        outs = [(p.name, _WIRE_COLOR.get(p.wire, (150, 150, 150))) for p in probe.outputs]
         props = {n: _jsonable(pm.default) for n, pm in probe.params.items()}
         cname = _clsname(vtype.type_name)
+        ncolor = vtype.color
+        has_img_out = any(p.wire == WireType.IMAGE for p in probe.outputs)
 
-        def _init(self, _ins=ins, _outs=outs, _props=props):  # noqa: ANN001
+        def _init(self, _ins=ins, _outs=outs, _props=props, _col=ncolor,
+                  _thumb=has_img_out):  # noqa: ANN001
             BaseNode.__init__(self)
-            for name, multi in _ins:
-                self.add_input(name, multi_input=multi)
-            for name in _outs:
-                self.add_output(name, multi_output=True)
+            self.set_color(*_col)
+            for name, multi, col in _ins:
+                self.add_input(name, multi_input=multi, color=col)
+            for name, col in _outs:
+                self.add_output(name, multi_output=True, color=col)
             for name, val in _props.items():
                 self.create_property(_PFX + name, val)
+            if _thumb:
+                try:
+                    self.add_custom_widget(ThumbWidget(), tab="Node")
+                except Exception:  # noqa: BLE001
+                    pass
 
         cls = type(cname, (BaseNode,), {
             "__identifier__": _IDENT,
@@ -72,6 +124,7 @@ class NodeCanvas(QObject):
         self._syncing = False
         self._n2c: dict[str, str] = {}   # ngqt node id -> core id
         self._c2n: dict[str, object] = {}
+        self._thumbs_visible = False
 
         self.ng = NodeGraph()
         self._classes = _build_ngqt_classes()
@@ -90,6 +143,44 @@ class NodeCanvas(QObject):
     @property
     def widget(self):
         return self.ng.widget
+
+    # ------------------------------------------------------------- thumbnails
+    def _thumb_widget(self, ng_node):
+        try:
+            return ng_node.get_widget("vc_thumb")
+        except Exception:  # noqa: BLE001
+            return None
+
+    def set_thumbs_visible(self, on: bool) -> None:
+        self._thumbs_visible = bool(on)
+        for ng in self._c2n.values():
+            w = self._thumb_widget(ng)
+            if w is None:
+                continue
+            w.setVisible(self._thumbs_visible)
+            if not self._thumbs_visible:
+                try:
+                    w.clear()
+                except Exception:  # noqa: BLE001
+                    pass
+            try:
+                ng.view.draw_node()
+            except Exception:  # noqa: BLE001
+                pass
+
+    def set_thumbs(self, thumbs: dict) -> None:
+        if not self._thumbs_visible:
+            return
+        for cid, arr in thumbs.items():
+            ng = self._c2n.get(cid)
+            if ng is None:
+                continue
+            w = self._thumb_widget(ng)
+            if w is not None:
+                try:
+                    w.set_array(arr)
+                except Exception:  # noqa: BLE001
+                    pass
 
     # ------------------------------------------------------- core -> canvas
     def sync_from_core(self) -> None:
@@ -119,6 +210,7 @@ class NodeCanvas(QObject):
                                  b.input(self._port_index(b, c.to_port, True)))
         finally:
             self._syncing = False
+        self.set_thumbs_visible(self._thumbs_visible)   # enforce hidden by default
 
     @staticmethod
     def _port_index(ng_node, port_name: str, is_input: bool) -> int:
@@ -129,11 +221,45 @@ class NodeCanvas(QObject):
         return 0
 
     # ------------------------------------------------------- canvas -> core
-    def add_node_by_type(self, type_name: str) -> str:
+    def add_node_by_type(self, type_name: str, *, auto_wire: bool = True) -> str:
         nid = self.core.new_id(type_name)
+        self.undo.beginMacro(f"Add {type_name}")
         self.undo.push(cmd.AddNodeCmd(self.core, type_name, nid))  # redo() adds it
+        if auto_wire:
+            self._auto_wire(nid, type_name)
+        self.undo.endMacro()
         self.sync_from_core()
         return nid
+
+    def _auto_wire(self, nid: str, type_name: str) -> None:
+        """Best-effort connect a freshly added node into the existing graph."""
+        vt = get_vtype(type_name)
+        has_img_in = any(p.wire == WireType.IMAGE for p in vt("_p").inputs)
+        has_img_out = any(p.wire == WireType.IMAGE for p in vt("_p").outputs)
+        if not has_img_out:
+            return
+
+        clip = next((n for n in self.core.nodes.values()
+                     if n.type_name == "Clip Source"), None)
+        stack = next((n for n in self.core.nodes.values()
+                      if n.type_name == "Stack"), None)
+        multi = any(p.wire == WireType.IMAGE and p.multi for p in vt("_p").inputs)
+
+        def _try(a, ap, b, bp):
+            try:
+                self.core.connect(a, ap, b, bp)
+                self.core.disconnect(Connection(a, ap, b, bp))
+                self.undo.push(cmd.ConnectCmd(self.core, Connection(a, ap, b, bp)))
+                return True
+            except Exception:  # noqa: BLE001
+                return False
+
+        in_port = next((p.name for p in vt("_p").inputs if p.wire == WireType.IMAGE), None)
+        if has_img_in and in_port and clip:
+            _try(clip.id, "image", nid, in_port if not multi else in_port)
+        out_port = next(p.name for p in vt("_p").outputs if p.wire == WireType.IMAGE)
+        if stack:
+            _try(nid, out_port, stack.id, "layers")
 
     def _on_port_connected(self, in_port, out_port):
         if self._syncing:

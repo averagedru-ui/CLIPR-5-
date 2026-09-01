@@ -74,10 +74,12 @@ class MainWindow(QMainWindow):
         self.renderer.set_graph(self.graph)
         self.renderer.ready.connect(self._on_gl_ready)
         self.renderer.frameComposited.connect(self._on_composited)
+        self.renderer.thumbsReady.connect(self._on_thumbs)
         self.renderer.failed.connect(self._on_fail)
 
         self._build_menus()
         self._build_docks()
+        self._build_view_menu_extras()
         self._build_statusbar()
         self._install_shortcuts()
         self._restore_layout()
@@ -174,6 +176,21 @@ class MainWindow(QMainWindow):
         self.dock_props = self._dock("Properties", "props",
                                      Qt.DockWidgetArea.RightDockWidgetArea, self.props)
         self.splitDockWidget(self.dock_nodes, self.dock_props, Qt.Orientation.Horizontal)
+
+    def _build_view_menu_extras(self) -> None:
+        self._view_menu.addSeparator()
+        self.act_thumbs = QAction("Node Preview Thumbnails", self, checkable=True)
+        self.act_thumbs.toggled.connect(self._toggle_thumbs)
+        self._view_menu.addAction(self.act_thumbs)
+
+    def _toggle_thumbs(self, on: bool) -> None:
+        self.renderer.want_thumbs = bool(on)
+        self.canvas.set_thumbs_visible(bool(on))
+        if on:
+            self._render_current()
+
+    def _on_thumbs(self, thumbs: dict) -> None:
+        self.canvas.set_thumbs(thumbs)
 
     def _dock(self, title, obj, area, widget) -> QDockWidget:
         d = QDockWidget(title, self)
@@ -415,21 +432,20 @@ class MainWindow(QMainWindow):
         self.timeline.set_cache_state(self.fetcher.cached_indices())
 
     def _render_current(self) -> None:
-        if self._last_frame is None:
-            return
         idx = self.timeline.frame
         fps = self._info.fps if self._info else 30.0
-        frames = {n.id: self._last_frame for n in self.graph.clip_source_nodes()}
+        frames = ({n.id: self._last_frame for n in self.graph.clip_source_nodes()}
+                  if self._last_frame is not None else {})
         self.renderer.submit(idx, frames, idx / fps if fps else 0.0)
 
     def _on_composited(self, index: int, arr: np.ndarray) -> None:
         self._last_output = arr
         if index == self.timeline.frame:
             self.output_view.set_frame(arr)
-        if self.renderer.last_render_ms > 90 and self.renderer.preview_scale > 0.25:
+        if self.renderer.last_render_ms > 130 and self.renderer.preview_scale > 0.25:
             self.renderer.preview_scale = max(0.25, self.renderer.preview_scale / 2)
-            self.lbl_preview.setText(
-                f"Preview {'¼' if self.renderer.preview_scale <= 0.25 else '½'} (auto)")
+        lbl = {1.0: "1x", 0.5: "½", 0.25: "¼"}.get(round(self.renderer.preview_scale, 2), "?")
+        self.lbl_preview.setText(f"Preview {lbl}")
 
     def _on_gl_ready(self, renderer: str) -> None:
         self.lbl_gpu.setText(f"GPU: {renderer[:40]}")

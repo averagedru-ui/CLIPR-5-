@@ -15,6 +15,7 @@ log = logging.getLogger("vcomp.renderworker")
 
 class RenderWorker(QObject):
     frameComposited = Signal(int, object)   # index, RGBA numpy (canvas res)
+    thumbsReady = Signal(object)            # {node_id: small RGBA}
     ready = Signal(str)
     failed = Signal(str)
 
@@ -33,6 +34,8 @@ class RenderWorker(QObject):
         self._comp = None
         self.preview_scale = 1.0
         self.last_render_ms = 0.0
+        self.want_thumbs = False
+        self._fast_streak = 0
 
     def set_graph(self, graph) -> None:
         self._graph = graph
@@ -94,8 +97,20 @@ class RenderWorker(QObject):
 
         from vcomp.render.frame_pipeline import render_graph_frame
 
+        thumbs: dict | None = {} if self.want_thumbs else None
         t0 = time.perf_counter()
         out = render_graph_frame(self._comp, self._graph, frames, t,
-                                 render_scale=self.preview_scale)
+                                 render_scale=self.preview_scale, thumbs=thumbs)
         self.last_render_ms = (time.perf_counter() - t0) * 1000.0
         self.frameComposited.emit(index, out)
+        if thumbs:
+            self.thumbsReady.emit(thumbs)
+
+        # gentle preview-scale recovery when frames are consistently cheap
+        if self.last_render_ms < 22 and self.preview_scale < 1.0:
+            self._fast_streak += 1
+            if self._fast_streak >= 10:
+                self.preview_scale = min(1.0, self.preview_scale * 2)
+                self._fast_streak = 0
+        else:
+            self._fast_streak = 0

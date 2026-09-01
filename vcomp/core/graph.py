@@ -45,6 +45,7 @@ class EvalContext:
     canvas_h: int
     render_scale: float = 1.0
     frames: dict[str, np.ndarray] = field(default_factory=dict)   # ClipSource id -> RGB
+    thumbs: dict | None = None                                     # node_id -> small RGBA (opt-in)
     _fbos: list = field(default_factory=list)
     _textures: list = field(default_factory=list)
 
@@ -244,7 +245,8 @@ class Graph:
     def evaluate(self, ctx: EvalContext) -> np.ndarray:
         with self.lock:
             key = self._state_key(ctx.t)
-            if key == self._cache_key and self._cache_val is not None:
+            if (key == self._cache_key and self._cache_val is not None
+                    and ctx.thumbs is None):
                 return self._cache_val
 
             order = self.topo_order()
@@ -266,12 +268,15 @@ class Graph:
 
                 if not node.enabled:
                     results[nid] = self._passthrough(node, resolved)
-                    continue
-                try:
-                    results[nid] = node.render(ctx, resolved) or {}
-                except Exception:  # noqa: BLE001
-                    log.exception("node %s (%s) render failed", nid, node.type_name)
-                    results[nid] = {}
+                else:
+                    try:
+                        results[nid] = node.render(ctx, resolved) or {}
+                    except Exception:  # noqa: BLE001
+                        log.exception("node %s (%s) render failed", nid, node.type_name)
+                        results[nid] = {}
+
+                if ctx.thumbs is not None:
+                    self._capture_thumb(ctx, node, results[nid])
 
             out = self.output_node()
             final = results.get(out.id, {}).get("result")
@@ -281,6 +286,20 @@ class Graph:
             self._cache_key = key
             self._cache_val = final
             return final
+
+    @staticmethod
+    def _capture_thumb(ctx: EvalContext, node: VNode, result: dict) -> None:
+        for port in node.outputs:
+            if port.wire != WireType.IMAGE:
+                continue
+            tex = result.get(port.name)
+            if tex is None:
+                return
+            try:
+                ctx.thumbs[node.id] = ctx.compositor.thumbnail(tex)
+            except Exception:  # noqa: BLE001
+                pass
+            return
 
     @staticmethod
     def _passthrough(node: VNode, resolved: dict[str, Any]) -> dict[str, Any]:

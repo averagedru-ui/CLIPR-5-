@@ -270,6 +270,15 @@ class Compositor:
     def blur_tex(self, tex, radius_px, w, h, out_fbo, tmp_fbo) -> None:
         self.gaussian_blur(tex, radius_px, w, h, out_fbo, tmp_fbo)
 
+    def thumbnail(self, tex: moderngl.Texture, w: int = 64, h: int = 114) -> np.ndarray:
+        """Small RGBA preview of an image texture (for node-canvas thumbnails)."""
+        fbo = self.ctx.acquire_fbo(w, h)
+        try:
+            self.sample(fbo, tex, fit=3)   # stretch-copy into the thumb
+            return read_fbo(fbo, components=4)
+        finally:
+            self.ctx.release_fbo(fbo)
+
     # ------------------------------------------------------------------ render
     def render_frame(self, spec: FrameSpec, source_rgb: np.ndarray | None) -> np.ndarray:
         rs = max(0.25, spec.render_scale)
