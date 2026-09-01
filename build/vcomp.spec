@@ -12,9 +12,14 @@ _vendor = ROOT / "vendor" / "ffmpeg"
 if _vendor.exists():
     datas.append((str(_vendor), "vendor/ffmpeg"))
 
+from PyInstaller.utils.hooks import collect_submodules
+
 hiddenimports = [
-    "av", "moderngl", "glcontext", "NodeGraphQt", "Qt",
+    "av", "moderngl", "glcontext", "Qt",
+    "PySide6.QtSvg", "PySide6.QtSvgWidgets", "PySide6.QtXml",
+    "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "PySide6.QtNetwork",
 ]
+hiddenimports += collect_submodules("NodeGraphQt")
 
 a = Analysis(
     [str(ROOT / "main.py")],
