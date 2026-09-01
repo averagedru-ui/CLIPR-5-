@@ -553,7 +553,7 @@ class MainWindow(QMainWindow):
         self.canvas.sync_from_core()
         clip = next(iter(self.graph.clip_source_nodes()), None)
         if clip and clip.params["file_path"].value:
-            self.fetcher.open(clip.params["file_path"].value)
+            self.fetcher.open(clip.params["file_path"].value, self._orientation_override())
         self.set_status(f"opened {path}")
 
     def _save_project(self) -> None:
@@ -605,7 +605,7 @@ class MainWindow(QMainWindow):
                 self.canvas.sync_from_core()
                 clip = next(iter(self.graph.clip_source_nodes()), None)
                 if clip and clip.params["file_path"].value:
-                    self.fetcher.open(clip.params["file_path"].value)
+                    self.fetcher.open(clip.params["file_path"].value, self._orientation_override())
                 self.set_status("recovered autosave")
             except (ValueError, OSError) as exc:
                 self.set_status(f"recovery failed: {exc}")
