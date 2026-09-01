@@ -117,27 +117,51 @@ class VideoDecoder:
 
             best: np.ndarray | None = None
             best_dt = float("inf")
-            for frame in self._container.decode(self._stream):
-                if frame.pts is None:
-                    continue
-                ftime = float(frame.pts * self._tb)
-                self._last_decoded_pts = ftime
-                dt = abs(ftime - want_pts)
-                if dt < best_dt:
-                    best_dt = dt
-                    best = frame.to_ndarray(format="rgb24")
-                if ftime >= want_pts:
-                    break
+            try:
+                for frame in self._container.decode(self._stream):
+                    if frame.pts is None:
+                        continue
+                    ftime = float(frame.pts * self._tb)
+                    self._last_decoded_pts = ftime
+                    dt = abs(ftime - want_pts)
+                    if dt < best_dt:
+                        best_dt = dt
+                        best = frame.to_ndarray(format="rgb24")
+                    if ftime >= want_pts:
+                        break
+            except (av.error.EOFError, StopIteration):
+                pass
 
             if best is None:
-                # Past EOF — decode the very last frame by seeking hard to end.
-                self._container.seek(self._container.duration or 0, stream=self._stream, backward=True)
-                for frame in self._container.decode(self._stream):
-                    best = frame.to_ndarray(format="rgb24")
-                    self._last_decoded_pts = float((frame.pts or 0) * self._tb)
+                # Past EOF or empty demux window: reopen and grab the last frame.
+                best = self._decode_last_frame()
             if best is None:
                 raise RuntimeError(f"Could not decode any frame near t={target:.3f}s")
             return np.ascontiguousarray(best)
+
+    def _decode_last_frame(self) -> np.ndarray | None:
+        try:
+            self._container.close()
+        except Exception:  # noqa: BLE001
+            pass
+        self._container = av.open(self._path)
+        self._stream = self._container.streams.video[0]
+        self._stream.thread_type = "AUTO"
+        self._last_decoded_pts = None
+        dur = self._container.duration or 0
+        try:
+            self._container.seek(max(0, dur - int(0.5 / self._tb)),
+                                 stream=self._stream, backward=True)
+        except av.error.FFmpegError:
+            pass
+        last = None
+        try:
+            for frame in self._container.decode(self._stream):
+                last = frame.to_ndarray(format="rgb24")
+                self._last_decoded_pts = float((frame.pts or 0) * self._tb)
+        except (av.error.EOFError, StopIteration):
+            pass
+        return last
 
     def close(self) -> None:
         with self._lock:

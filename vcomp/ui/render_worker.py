@@ -88,15 +88,8 @@ class RenderWorker(QObject):
         self._comp.release()
 
     def _render(self, index: int, frames: dict, t: float) -> None:
-        from vcomp.core.graph import EvalContext
+        from vcomp.render.frame_pipeline import render_graph_frame
 
-        g = self._graph
-        cw, ch, _rs = g.canvas_params()
-        # preview always renders at 1x; export (M6) uses the Output render_scale
-        ctx = EvalContext(self._comp, t=t, canvas_w=cw, canvas_h=ch,
-                          render_scale=1.0, frames=frames)
-        try:
-            out = g.evaluate(ctx)
-        finally:
-            ctx.release_all()
+        # preview always renders at 1x; export uses the Output render_scale
+        out = render_graph_frame(self._comp, self._graph, frames, t, render_scale=1.0)
         self.frameComposited.emit(index, out)

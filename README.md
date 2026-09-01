@@ -3,11 +3,11 @@
 Node-based compositor that turns 16:9 gameplay recordings into 9:16 vertical
 clips **without cropping away the HUD**. Windows desktop app.
 
-Status: **M5 — backgrounds & modifiers**. Blur Background (downsampled gaussian,
-look pass), Gradient Background (oklab + dither), Image Background, Transform,
-Color Adjust, Blur, Key, Opacity, Text (QPainter raster), Facecam, Bar Layout,
-Time, Expression (AST-sandboxed). Stack layer-list inspector with per-layer
-opacity / blend / reorder / visibility.
+Status: **M6 — export**. ffmpeg subprocess encoder (RGBA frames over stdin,
+audio muxed from source, stderr drained on a thread), encoder detection,
+export dialog with presets / live estimate / progress / cancel. Preview and
+export render through one shared function — the golden-frame test asserts they
+match within 1/255.
 
 ## Dev setup
 

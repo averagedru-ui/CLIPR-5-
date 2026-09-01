@@ -92,7 +92,7 @@ class MainWindow(QMainWindow):
         self._add(f, "Open Clip...", "Ctrl+O", self._open_clip)
         f.addSeparator()
         self._add(f, "Save", "Ctrl+S", self._todo)
-        self._add(f, "Export...", "Ctrl+E", self._todo)
+        self._add(f, "Export...", "Ctrl+E", self._export)
         f.addSeparator()
         self._add(f, "Quit", "Ctrl+Q", self.close)
 
@@ -436,6 +436,19 @@ class MainWindow(QMainWindow):
                           base64.b64encode(bytes(self.saveState())).decode("ascii"))
         self.settings.save()
         super().closeEvent(event)
+
+    def _export(self) -> None:
+        if not self._info:
+            self.set_status("open a clip first")
+            return
+        from vcomp.ui.export_dialog import ExportDialog
+
+        clip = next(iter(self.graph.clip_source_nodes()), None)
+        speed = float(clip.params["speed"].value) if clip else 1.0
+        in_t = self.timeline.in_point / self._info.fps
+        out_t = (self.timeline.out_point + 1) / self._info.fps
+        dlg = ExportDialog(self, self.graph, self._info.path, in_t, out_t, speed)
+        dlg.exec()
 
     def _todo(self) -> None:
         self.set_status("not implemented yet")

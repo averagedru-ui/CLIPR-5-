@@ -59,6 +59,21 @@ def cfr_clip(tmp_path_factory) -> Path:
 
 
 @pytest.fixture(scope="session")
+def cfr8_clip(tmp_path_factory) -> Path:
+    """8 s CFR clip with audio, for the deadlock regression test."""
+    if _ffmpeg_missing:
+        pytest.skip("vendored ffmpeg missing")
+    out = tmp_path_factory.mktemp("media") / "cfr8.mp4"
+    _run([
+        "-f", "lavfi", "-i", "testsrc2=size=256x144:rate=30:duration=8",
+        "-f", "lavfi", "-i", "sine=frequency=440:duration=8",
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-t", "8", str(out),
+    ])
+    return out
+
+
+@pytest.fixture(scope="session")
 def vfr_clip(tmp_path_factory) -> Path:
     """Variable frame rate clip: two segments at 30 and 60 fps spliced with
     ``-c copy`` so frame durations change mid-stream (avg_rate != base_rate)."""
