@@ -66,6 +66,14 @@ class MainFraming(VNode):
         self.add_output("image", WireType.IMAGE)
         self.add_output("dest_rect", WireType.RECT)
 
+    def band_rect(self, canvas_w: int, canvas_h: int, src_w: int, src_h: int
+                  ) -> tuple[float, float, float, float]:
+        """Destination quad (x0,y0,x1,y1 canvas [0,1]) - pure, for overlays."""
+        return _fit_dest(self.params["fit_mode"].value, canvas_w, canvas_h,
+                         src_w or canvas_w, src_h or canvas_h,
+                         tuple(self.params["dest_position"].value),
+                         float(self.params["dest_scale"].value))
+
     def render(self, ctx, inputs: dict[str, Any]) -> dict[str, Any]:
         src = inputs.get("image")
         fbo = ctx.acquire_fbo()

@@ -284,6 +284,9 @@ class Graph:
 
     @staticmethod
     def _passthrough(node: VNode, resolved: dict[str, Any]) -> dict[str, Any]:
+        # A disabled layer contributes nothing; a disabled modifier is bypassed.
+        if not node.bypass_when_disabled:
+            return {}
         img_in = next((resolved[p.name] for p in node.inputs
                        if p.wire == WireType.IMAGE and resolved.get(p.name) is not None), None)
         img_out = next((p.name for p in node.outputs if p.wire == WireType.IMAGE), None)

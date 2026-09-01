@@ -55,6 +55,7 @@ class MainWindow(QMainWindow):
 
         self._info: MediaInfo | None = None
         self._last_frame: np.ndarray | None = None
+        self._selected_id: str | None = None
 
         self._rerender = QTimer(self)
         self._rerender.setSingleShot(True)
@@ -142,6 +143,14 @@ class MainWindow(QMainWindow):
 
         self.props = PropertiesPanel(self.graph, self.undo_stack)
 
+        self.source_view.createRegion.connect(self._on_create_region)
+        self.source_view.editRect.connect(self._on_edit_rect)
+        self.source_view.selectRegion.connect(self._on_region_selected)
+        self.source_view.pickColor.connect(self._on_pick_color)
+        self.output_view.moveDest.connect(self._on_move_dest)
+        self.output_view.scaleDest.connect(self._on_scale_dest)
+        self.output_view.rotateDest.connect(self._on_rotate_dest)
+
         self.dock_source = self._dock("Source Viewport (16:9)", "source",
                                       Qt.DockWidgetArea.LeftDockWidgetArea, self.source_view)
         self.dock_output = self._dock("Output Viewport (9:16)", "output",
@@ -191,6 +200,10 @@ class MainWindow(QMainWindow):
         sc(".", lambda: self.timeline.seek(self.timeline.frame + 1))
         sc("Home", lambda: self.timeline.seek(self.timeline.in_point))
         sc("End", lambda: self.timeline.seek(self.timeline.out_point))
+        sc("M", self.source_view.arm_create)
+        sc("Alt+I", self.source_view.arm_eyedropper)
+        sc("S", self._toggle_solo)
+        sc("H", self._toggle_hide)
 
     # ----------------------------------------------------------------- nodes
     def _add_node(self, type_name: str) -> None:
@@ -201,11 +214,148 @@ class MainWindow(QMainWindow):
             self.set_status(f"cannot add {type_name}: {exc}")
 
     def _on_node_selected(self, cid) -> None:
-        self.props.show_node(cid)
+        self._selected_id = cid or None
+        self.props.show_node(self._selected_id)
+        self._refresh_overlays()
+
+    def _on_region_selected(self, cid) -> None:
+        self._selected_id = cid or None
+        if cid:
+            self.canvas.focus_core_node(cid)
+        self.props.show_node(self._selected_id)
+        self._refresh_overlays()
 
     def _on_graph_changed(self) -> None:
         self.props.refresh()
+        self._refresh_overlays()
         self._rerender.start()
+
+    # -------------------------------------------------------------- overlays
+    def _src_dims(self) -> tuple[int, int]:
+        if self._info:
+            return self._info.width, self._info.height
+        return 1920, 1080
+
+    def _hud_nodes(self):
+        return [n for n in self.graph.nodes.values() if n.type_name == "HUD Region"]
+
+    def _refresh_overlays(self) -> None:
+        regs = []
+        for n in self._hud_nodes():
+            regs.append({
+                "id": n.id,
+                "label": n.params["label"].value or n.title,
+                "rect": tuple(n.params["source_rect"].value),
+                "selected": n.id == self._selected_id,
+            })
+        self.source_view.set_regions(regs)
+
+        sel = self.graph.nodes.get(self._selected_id) if self._selected_id else None
+        sw, sh = self._src_dims()
+        cw, ch, _ = self.graph.canvas_params()
+        band = None
+        fr = next((n for n in self.graph.nodes.values() if n.type_name == "Main Framing"), None)
+        if fr is not None:
+            band = fr.band_rect(cw, ch, sw, sh)
+        if sel is not None and sel.type_name == "HUD Region":
+            quad = sel.dest_rect_for(cw, ch, sw, sh)
+            self.output_view.set_selection(
+                sel.id, quad,
+                (sel.params["dest_x"].value, sel.params["dest_y"].value),
+                sel.params["dest_scale"].value, sel.params["rotation"].value, band)
+        else:
+            self.output_view.set_selection(None, None, None, None, None, band)
+
+    # ---------------------------------------------------------- region edits
+    def _on_create_region(self, x, y, w, h) -> None:
+        from vcomp.core import coords
+
+        clip = next(iter(self.graph.clip_source_nodes()), None)
+        stack = next((n for n in self.graph.nodes.values() if n.type_name == "Stack"), None)
+        from vcomp.ui.commands import AddNodeCmd
+
+        rid = self.graph.new_id("HUD Region")
+        self.undo_stack.beginMacro("Create HUD Region")
+        self.undo_stack.push(AddNodeCmd(self.graph, "HUD Region", rid))
+        self.graph.set_param(rid, "source_rect", coords.clamp_rect((x, y, w, h)))
+        n_regions = len(self._hud_nodes())
+        self.graph.set_param(rid, "dest_x", 0.5)
+        self.graph.set_param(rid, "dest_y", 0.08 + 0.06 * (n_regions - 1))
+        self.graph.set_param(rid, "label", f"Region {n_regions}")
+        if clip:
+            self._safe_connect(clip.id, "image", rid, "image")
+        if stack:
+            self._safe_connect(rid, "image", stack.id, "layers")
+        self.undo_stack.endMacro()
+        self._selected_id = rid
+        self.canvas.sync_from_core()
+        self.canvas.focus_core_node(rid)
+        self.props.show_node(rid)
+        self.set_status(f"created HUD Region '{rid}'")
+
+    def _safe_connect(self, a, ap, b, bp) -> None:
+        from vcomp.ui.commands import ConnectCmd
+        from vcomp.core.graph import Connection
+
+        try:
+            self.graph.connect(a, ap, b, bp)
+            self.graph.disconnect(Connection(a, ap, b, bp))
+            self.undo_stack.push(ConnectCmd(self.graph, Connection(a, ap, b, bp)))
+        except Exception as exc:  # noqa: BLE001
+            self.set_status(f"wire failed: {exc}")
+
+    def _on_edit_rect(self, node_id, rect, final) -> None:
+        from vcomp.ui.commands import SetParamCmd
+
+        if node_id in self.graph.nodes:
+            self.undo_stack.push(SetParamCmd(self.graph, node_id, "source_rect", tuple(rect)))
+
+    def _on_pick_color(self, rgb) -> None:
+        from vcomp.ui.commands import SetParamCmd
+
+        if not self._selected_id:
+            return
+        node = self.graph.nodes[self._selected_id]
+        target = "plate_color" if node.params.get("plate_enabled") and \
+            node.params["plate_enabled"].value else "outline_color"
+        if target not in node.params:
+            target = next((k for k, p in node.params.items()
+                           if p.type.name == "COLOR"), None)
+        if target:
+            r, g, b = rgb
+            self.undo_stack.push(SetParamCmd(self.graph, self._selected_id, target,
+                                             (r, g, b, 1.0)))
+            self.set_status(f"picked colour -> {target}")
+
+    def _on_move_dest(self, node_id, dx, dy, final) -> None:
+        from vcomp.ui.commands import SetParamCmd
+
+        self.undo_stack.push(SetParamCmd(self.graph, node_id, "dest_x", float(dx)))
+        self.undo_stack.push(SetParamCmd(self.graph, node_id, "dest_y", float(dy)))
+
+    def _on_scale_dest(self, node_id, scale, final) -> None:
+        from vcomp.ui.commands import SetParamCmd
+
+        self.undo_stack.push(SetParamCmd(self.graph, node_id, "dest_scale", float(scale)))
+
+    def _on_rotate_dest(self, node_id, deg, final) -> None:
+        from vcomp.ui.commands import SetParamCmd
+
+        self.undo_stack.push(SetParamCmd(self.graph, node_id, "rotation", float(deg)))
+
+    def _toggle_solo(self) -> None:
+        from vcomp.ui.commands import SetParamCmd
+
+        if self._selected_id and "solo" in self.graph.nodes[self._selected_id].params:
+            cur = self.graph.nodes[self._selected_id].params["solo"].value
+            self.undo_stack.push(SetParamCmd(self.graph, self._selected_id, "solo", not cur))
+
+    def _toggle_hide(self) -> None:
+        from vcomp.ui.commands import SetEnabledCmd
+
+        if self._selected_id:
+            cur = self.graph.nodes[self._selected_id].enabled
+            self.undo_stack.push(SetEnabledCmd(self.graph, self._selected_id, not cur))
 
     # ----------------------------------------------------------------- media
     def _open_clip(self) -> None:
@@ -228,6 +378,7 @@ class MainWindow(QMainWindow):
         vfr = " VFR" if info.is_vfr else ""
         self.lbl_source.setText(f"{info.width}x{info.height}  {info.fps:.3f}fps{vfr}  {info.duration:.1f}s")
         self.set_status(f"loaded {info.path}")
+        self._refresh_overlays()
         self._request_frame(0)
 
     def _request_frame(self, index: int) -> None:

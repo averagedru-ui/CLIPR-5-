@@ -36,4 +36,4 @@ def by_category() -> dict[str, list[Type[VNode]]]:
 
 def load_builtin_nodes() -> None:
     """Import modules that register node types (call once at startup)."""
-    from vcomp.nodes import background, composite, framing, source  # noqa: F401
+    from vcomp.nodes import background, composite, framing, region, source  # noqa: F401

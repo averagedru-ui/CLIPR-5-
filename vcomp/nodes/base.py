@@ -31,6 +31,7 @@ class VNode:
     color: tuple[int, int, int] = (90, 90, 100)
     max_instances: int | None = None
     deletable: bool = True
+    bypass_when_disabled: bool = False   # modifiers pass input through; layers vanish
 
     def __init__(self, node_id: str, title: str | None = None) -> None:
         self.id = node_id

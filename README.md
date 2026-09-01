@@ -3,11 +3,11 @@
 Node-based compositor that turns 16:9 gameplay recordings into 9:16 vertical
 clips **without cropping away the HUD**. Windows desktop app.
 
-Status: **M3 — node system**. Graph model (topo sort, cycle detection, dirty
-propagation, frame cache), NodeGraphQt canvas bridged to the core graph,
-generic properties inspector, undo/redo. Nodes: Clip Source, Main Framing,
-Solid Background, Stack, Output (+ Value/Color). Default graph composites a
-loaded clip live.
+Status: **M4 — masks**. HUD Region node (rect / rounded / ellipse / polygon,
+SDF feather, dilate/erode, plate, outline, drop shadow). Draw-to-create in the
+source viewport (hold M + drag); 8-handle resize + move + snapping in the source
+view; move / scale / rotate handles + snapping in the output view; eyedropper;
+resolution-independent region remapping in `core/coords.py`.
 
 ## Dev setup
 

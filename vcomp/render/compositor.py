@@ -50,6 +50,10 @@ class Compositor:
         self._layer = self.ctx.program("fullscreen.vert", "layer.frag")
         self._blit = self.ctx.program("fullscreen.vert", "blit.frag")
         self._compose = self.ctx.program("fullscreen.vert", "compose.frag")
+        self._region = self.ctx.program("fullscreen.vert", "region.frag")
+        self._blur = self.ctx.program("fullscreen.vert", "blur.frag")
+        self._plate = self.ctx.program("fullscreen.vert", "plate.frag")
+        self._shadow = self.ctx.program("fullscreen.vert", "shadow.frag")
 
     # ------------------------------------------------------- node-graph ops
     def fill_solid(self, fbo: moderngl.Framebuffer, color) -> None:
@@ -93,6 +97,82 @@ class Compositor:
 
     def to_numpy(self, fbo: moderngl.Framebuffer) -> np.ndarray:
         return read_fbo(fbo, components=4)
+
+    # ------------------------------------------------------------- M4 ops
+    def region(self, fbo: moderngl.Framebuffer, src_tex: moderngl.Texture, *,
+               dest, srcrect, shape: int, radii=(0.0, 0.0, 0.0, 0.0),
+               feather=0.0, expand=0.0, rotation=0.0, opacity=1.0,
+               outline_w=0.0, outline_color=(1, 1, 1, 1),
+               flip_h=False, flip_v=False,
+               polymask: moderngl.Texture | None = None) -> None:
+        fbo.use()
+        fbo.clear(0.0, 0.0, 0.0, 0.0)
+        self.ctx.ctx.disable(moderngl.BLEND)
+        src_tex.use(0)
+        p = self._region
+        p["u_src"].value = 0
+        if polymask is not None:
+            polymask.use(1)
+            p["u_polymask"].value = 1
+            p["u_has_polymask"].value = 1
+        else:
+            p["u_has_polymask"].value = 0
+        p["u_dest"].value = tuple(dest)
+        p["u_srcrect"].value = tuple(srcrect)
+        p["u_shape"].value = int(shape)
+        p["u_radii"].value = tuple(radii)
+        p["u_feather"].value = float(feather)
+        p["u_expand"].value = float(expand)
+        p["u_rotation"].value = float(rotation)
+        p["u_flip_h"].value = int(flip_h)
+        p["u_flip_v"].value = int(flip_v)
+        p["u_outline_w"].value = float(outline_w)
+        p["u_outline_color"].value = tuple(outline_color)
+        p["u_opacity"].value = float(opacity)
+        self.ctx.draw_fullscreen(p)
+
+    def gaussian_blur(self, tex: moderngl.Texture, radius_px: float,
+                      w: int, h: int, out_fbo, tmp_fbo) -> None:
+        """Two-pass separable blur; result left in ``out_fbo``."""
+        r = int(max(0, min(12, round(radius_px))))
+        p = self._blur
+        p["u_tex"].value = 0
+        p["u_radius"].value = r
+        tmp_fbo.use()
+        tmp_fbo.clear(0, 0, 0, 0)
+        self.ctx.ctx.disable(moderngl.BLEND)
+        tex.use(0)
+        p["u_dir"].value = (1.0 / w, 0.0)
+        self.ctx.draw_fullscreen(p)
+        out_fbo.use()
+        out_fbo.clear(0, 0, 0, 0)
+        tmp_fbo.color_attachments[0].use(0)
+        p["u_dir"].value = (0.0, 1.0 / h)
+        self.ctx.draw_fullscreen(p)
+
+    def plate(self, fbo, *, rect, radius=0.0, softness=0.002, color=(0, 0, 0, 0.5)) -> None:
+        fbo.use()
+        fbo.clear(0, 0, 0, 0)
+        self.ctx.ctx.disable(moderngl.BLEND)
+        p = self._plate
+        p["u_rect"].value = tuple(rect)
+        p["u_radius"].value = float(radius)
+        p["u_softness"].value = float(softness)
+        p["u_color"].value = tuple(color)
+        self.ctx.draw_fullscreen(p)
+
+    def shadow(self, fbo, region_tex, *, offset=(0.0, 0.0), color=(0, 0, 0, 1),
+               opacity=0.5) -> None:
+        fbo.use()
+        fbo.clear(0, 0, 0, 0)
+        self.ctx.ctx.disable(moderngl.BLEND)
+        region_tex.use(0)
+        p = self._shadow
+        p["u_tex"].value = 0
+        p["u_offset"].value = tuple(offset)
+        p["u_color"].value = tuple(color)
+        p["u_opacity"].value = float(opacity)
+        self.ctx.draw_fullscreen(p)
 
     # ------------------------------------------------------------------ render
     def render_frame(self, spec: FrameSpec, source_rgb: np.ndarray | None) -> np.ndarray:

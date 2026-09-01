@@ -45,6 +45,8 @@ class RenderWorker(QObject):
         self._mutex.unlock()
 
     def stop(self) -> None:
+        if not self._thread.isRunning():
+            return
         self._mutex.lock()
         self._running = False
         self._cond.wakeAll()
