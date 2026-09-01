@@ -270,7 +270,7 @@ class MainWindow(QMainWindow):
     # -------------------------------------------------------------- overlays
     def _src_dims(self) -> tuple[int, int]:
         if self._info:
-            return self._info.width, self._info.height
+            return self._info.display_width, self._info.display_height
         return 1920, 1080
 
     def _hud_nodes(self):
@@ -401,19 +401,33 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "Open Clip", start, _VIDEO_FILTER)
         if path:
             self.set_status(f"opening {path} ...")
-            self.fetcher.open(path)
+            self.fetcher.open(path, self._orientation_override())
+
+    def _orientation_override(self) -> int | None:
+        clip = next(iter(self.graph.clip_source_nodes()), None)
+        val = clip.params["orientation"].value if clip and "orientation" in clip.params else "auto"
+        if val == "auto":
+            return None
+        if val == "none":
+            return 0
+        try:
+            return int(val)
+        except ValueError:
+            return None
 
     def _on_opened(self, info: MediaInfo) -> None:
         self._info = info
         self.settings.add_recent_file(info.path)
         self.settings.save()
         self.timeline.set_media(info.frame_count, info.fps)
+        dw, dh = info.display_width, info.display_height
         for node in self.graph.clip_source_nodes():
             node.params["file_path"].set(info.path)
             node.params["out_point"].set(info.duration)
-            node.set_media_info(info.width, info.height, info.fps, info.duration)
+            node.set_media_info(dw, dh, info.fps, info.duration)
         vfr = " VFR" if info.is_vfr else ""
-        self.lbl_source.setText(f"{info.width}x{info.height}  {info.fps:.3f}fps{vfr}  {info.duration:.1f}s")
+        rot = f"  rot{info.rotation}" if info.rotation else ""
+        self.lbl_source.setText(f"{dw}x{dh}{rot}  {info.fps:.3f}fps{vfr}  {info.duration:.1f}s")
         self.set_status(f"loaded {info.path}")
         self._refresh_overlays()
         self._request_frame(0)
@@ -503,7 +517,7 @@ class MainWindow(QMainWindow):
         if self._info:
             for n in self.graph.clip_source_nodes():
                 n.params["file_path"].set(self._info.path)
-                n.set_media_info(self._info.width, self._info.height,
+                n.set_media_info(self._info.display_width, self._info.display_height,
                                  self._info.fps, self._info.duration)
         self.canvas.sync_from_core()
         self._refresh_overlays()

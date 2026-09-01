@@ -34,6 +34,7 @@ class FrameFetcher(QObject):
         self._cond = QWaitCondition()
         self._pending: int | None = None
         self._open_path: str | None = None
+        self._open_rotation: int | None = None
         self._running = True
         self._decoder: VideoDecoder | None = None
 
@@ -41,9 +42,10 @@ class FrameFetcher(QObject):
     def start(self) -> None:
         self._thread.start()
 
-    def open(self, path: str) -> None:
+    def open(self, path: str, rotation: int | None = None) -> None:
         self._mutex.lock()
         self._open_path = path
+        self._open_rotation = rotation
         self._cond.wakeAll()
         self._mutex.unlock()
 
@@ -78,24 +80,25 @@ class FrameFetcher(QObject):
                 self._mutex.unlock()
                 break
             path = self._open_path
+            rotation = self._open_rotation
             self._open_path = None
             index = self._pending
             self._pending = None
             self._mutex.unlock()
 
             if path is not None:
-                self._do_open(path)
+                self._do_open(path, rotation)
             if index is not None and self._decoder is not None:
                 self._do_decode(index)
 
         if self._decoder is not None:
             self._decoder.close()
 
-    def _do_open(self, path: str) -> None:
+    def _do_open(self, path: str, rotation: int | None = None) -> None:
         try:
             if self._decoder is not None:
                 self._decoder.close()
-            self._decoder = VideoDecoder(path)
+            self._decoder = VideoDecoder(path, rotation=rotation)
             log.info("opened %s (%dx%d @ %.3ffps, vfr=%s)", path,
                      self._decoder.info.width, self._decoder.info.height,
                      self._decoder.info.fps, self._decoder.info.is_vfr)

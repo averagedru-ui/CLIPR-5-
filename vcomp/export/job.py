@@ -75,7 +75,7 @@ class ExportJob(QObject):
 
             decoder = VideoDecoder(req.source_path)
             for n in graph.clip_source_nodes():
-                n.set_media_info(decoder.info.width, decoder.info.height,
+                n.set_media_info(decoder.info.display_width, decoder.info.display_height,
                                  decoder.info.fps, decoder.info.duration)
 
             comp = Compositor()
@@ -155,7 +155,7 @@ def render_single_frame(graph_dict: dict, source_path: str, frame_index: int,
     graph.load_dict(graph_dict)
     decoder = VideoDecoder(source_path)
     for n in graph.clip_source_nodes():
-        n.set_media_info(decoder.info.width, decoder.info.height,
+        n.set_media_info(decoder.info.display_width, decoder.info.display_height,
                          decoder.info.fps, decoder.info.duration)
 
     own = compositor is None

@@ -110,9 +110,9 @@ class BatchDialog(QDialog):
             g.load_dict(self._base.to_dict())
             for n in g.clip_source_nodes():
                 n.params["file_path"].set(c)
-                n.set_media_info(info.width, info.height, info.fps, info.duration)
+                n.set_media_info(info.display_width, info.display_height, info.fps, info.duration)
             if tpl:
-                apply_template(g, tpl, (info.width, info.height))
+                apply_template(g, tpl, (info.display_width, info.display_height))
                 for n in g.clip_source_nodes():
                     n.params["file_path"].set(c)
             out_dir = Path(self._outdir) if self._outdir else Path(c).parent

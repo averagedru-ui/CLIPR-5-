@@ -25,6 +25,10 @@ class ClipSource(VNode):
         self.add_param(Param("loop", ParamType.BOOL, False, group="Clip"))
         self.add_param(Param("stabilize_timebase", ParamType.BOOL, True, group="Clip",
                              tooltip="Resample a VFR source onto a constant frame rate."))
+        self.add_param(Param("orientation", ParamType.ENUM, "auto",
+                             choices=("auto", "none", "90", "180", "270"), group="Clip",
+                             tooltip="auto = honour the file's rotation flag; "
+                                     "none = ignore it; 90/180/270 = force."))
 
         self.add_output("image", WireType.IMAGE)
         self.add_output("audio", WireType.AUDIO)

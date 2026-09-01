@@ -29,9 +29,12 @@ log = logging.getLogger("vcomp.decoder")
 
 
 class VideoDecoder:
-    def __init__(self, path: str | Path, cache_size: int = 96) -> None:
+    def __init__(self, path: str | Path, cache_size: int = 96,
+                 rotation: int | None = None) -> None:
         self.info: MediaInfo = probe(path)
         self._path = str(path)
+        # container display rotation (CW degrees) applied to every decoded frame
+        self._rotation = self.info.rotation if rotation is None else int(rotation) % 360
         self._cache_size = max(4, cache_size)
         self._cache: "OrderedDict[int, np.ndarray]" = OrderedDict()
         self._lock = threading.RLock()
@@ -137,7 +140,16 @@ class VideoDecoder:
                 best = self._decode_last_frame()
             if best is None:
                 raise RuntimeError(f"Could not decode any frame near t={target:.3f}s")
-            return np.ascontiguousarray(best)
+            return self._apply_rotation(best)
+
+    def _apply_rotation(self, arr: np.ndarray) -> np.ndarray:
+        if self._rotation == 90:
+            arr = np.rot90(arr, k=-1)
+        elif self._rotation == 180:
+            arr = np.rot90(arr, k=2)
+        elif self._rotation == 270:
+            arr = np.rot90(arr, k=1)
+        return np.ascontiguousarray(arr)
 
     def _decode_last_frame(self) -> np.ndarray | None:
         try:
