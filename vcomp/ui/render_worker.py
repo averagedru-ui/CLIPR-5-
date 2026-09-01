@@ -31,6 +31,8 @@ class RenderWorker(QObject):
         self._running = True
         self._pending: tuple | None = None
         self._comp = None
+        self.preview_scale = 1.0
+        self.last_render_ms = 0.0
 
     def set_graph(self, graph) -> None:
         self._graph = graph
@@ -88,8 +90,12 @@ class RenderWorker(QObject):
         self._comp.release()
 
     def _render(self, index: int, frames: dict, t: float) -> None:
+        import time
+
         from vcomp.render.frame_pipeline import render_graph_frame
 
-        # preview always renders at 1x; export uses the Output render_scale
-        out = render_graph_frame(self._comp, self._graph, frames, t, render_scale=1.0)
+        t0 = time.perf_counter()
+        out = render_graph_frame(self._comp, self._graph, frames, t,
+                                 render_scale=self.preview_scale)
+        self.last_render_ms = (time.perf_counter() - t0) * 1000.0
         self.frameComposited.emit(index, out)

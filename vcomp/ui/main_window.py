@@ -86,6 +86,12 @@ class MainWindow(QMainWindow):
         self.fetcher.start()
         self.renderer.start()
 
+        self._autosave = QTimer(self)
+        self._autosave.setInterval(60_000)
+        self._autosave.timeout.connect(self._do_autosave)
+        self._autosave.start()
+        QTimer.singleShot(400, self._offer_recovery)
+
     # ------------------------------------------------------------------ menus
     def _build_menus(self) -> None:
         mb = self.menuBar()
@@ -210,6 +216,14 @@ class MainWindow(QMainWindow):
         sc("Alt+I", self.source_view.arm_eyedropper)
         sc("S", self._toggle_solo)
         sc("H", self._toggle_hide)
+        sc("G", lambda: (self.output_view.toggle_guides(), self._render_current()))
+        sc("F", self._frame_selection)
+        sc("1", lambda: self._set_preview_scale(0.25))
+        sc("2", lambda: self._set_preview_scale(0.5))
+        sc("3", lambda: self._set_preview_scale(1.0))
+        sc("Ctrl+D", self._duplicate_selected)
+        sc("L", lambda: self.canvas.ng.auto_layout_nodes()
+           if hasattr(self.canvas.ng, "auto_layout_nodes") else None)
 
     # ----------------------------------------------------------------- nodes
     def _add_node(self, type_name: str) -> None:
@@ -412,6 +426,10 @@ class MainWindow(QMainWindow):
         self._last_output = arr
         if index == self.timeline.frame:
             self.output_view.set_frame(arr)
+        if self.renderer.last_render_ms > 90 and self.renderer.preview_scale > 0.25:
+            self.renderer.preview_scale = max(0.25, self.renderer.preview_scale / 2)
+            self.lbl_preview.setText(
+                f"Preview {'¼' if self.renderer.preview_scale <= 0.25 else '½'} (auto)")
 
     def _on_gl_ready(self, renderer: str) -> None:
         self.lbl_gpu.setText(f"GPU: {renderer[:40]}")
@@ -527,6 +545,70 @@ class MainWindow(QMainWindow):
         proj.save(path)
         self._project_path = path
         self.set_status(f"saved {path}")
+
+    # ---------------------------------------------------------------- polish
+    def _do_autosave(self) -> None:
+        if len(self.graph.nodes) <= 1:
+            return
+        from vcomp.core.autosave import write_autosave
+        from vcomp.core.project import Project
+
+        p = Project(graph=self.graph, in_point=self.timeline.in_point,
+                    out_point=self.timeline.out_point)
+        if write_autosave(p):
+            self.lbl_action.setText("autosaved")
+
+    def _offer_recovery(self) -> None:
+        from vcomp.core.autosave import clear_recovery, pending_recovery
+        from vcomp.core.project import Project
+
+        rec = pending_recovery()
+        if not rec:
+            return
+        if QMessageBox.question(
+                self, "Recover", f"An autosave from {rec.stem} was found. Restore it?"
+        ) == QMessageBox.StandardButton.Yes:
+            try:
+                proj = Project.load(rec)
+                self.graph.load_dict(proj.graph.to_dict())
+                self.undo_stack.clear()
+                self.canvas.sync_from_core()
+                clip = next(iter(self.graph.clip_source_nodes()), None)
+                if clip and clip.params["file_path"].value:
+                    self.fetcher.open(clip.params["file_path"].value)
+                self.set_status("recovered autosave")
+            except (ValueError, OSError) as exc:
+                self.set_status(f"recovery failed: {exc}")
+        clear_recovery()
+
+    def _set_preview_scale(self, s: float) -> None:
+        self.renderer.preview_scale = s
+        label = {0.25: "¼", 0.5: "½", 1.0: "1x"}[s]
+        self.lbl_preview.setText(f"Preview {label}")
+        self._render_current()
+
+    def _frame_selection(self) -> None:
+        for v in (self.source_view, self.output_view):
+            v._zoom = 1.0
+            v._pan = v._pan.__class__(0, 0)
+            v.update()
+
+    def _duplicate_selected(self) -> None:
+        if not self._selected_id or self._selected_id not in self.graph.nodes:
+            return
+        src = self.graph.nodes[self._selected_id]
+        if not src.deletable:
+            return
+        from vcomp.ui.commands import AddNodeCmd
+
+        nid = self.graph.new_id(src.type_name)
+        self.undo_stack.beginMacro("Duplicate node")
+        self.undo_stack.push(AddNodeCmd(self.graph, src.type_name, nid))
+        for k, snap in src.to_dict()["params"].items():
+            self.graph.nodes[nid].params[k].restore(snap)
+        self.undo_stack.endMacro()
+        self.canvas.sync_from_core()
+        self.set_status(f"duplicated {src.type_name}")
 
     def _batch_export(self) -> None:
         from vcomp.ui.batch_dialog import BatchDialog

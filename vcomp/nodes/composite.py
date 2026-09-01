@@ -56,6 +56,29 @@ class Stack(VNode):
 
 
 @register
+class Guides(VNode):
+    """Non-rendering: toggles social-platform safe-area overlays in the output
+    viewport. Passes its input image straight through; never affects export."""
+    type_name = "Guides"
+    category = "Composite"
+    title_default = "Guides"
+    color = (120, 80, 80)
+    bypass_when_disabled = True
+
+    def _define(self) -> None:
+        self.add_input("image", WireType.IMAGE)
+        self.add_output("image", WireType.IMAGE)
+        self.add_param(Param("preset", ParamType.ENUM, "TikTok",
+                             choices=("TikTok", "Reels", "Shorts"), group="Guides"))
+        self.add_param(Param("top_status_bar", ParamType.BOOL, True, group="Guides"))
+        self.add_param(Param("action_rail", ParamType.BOOL, True, group="Guides"))
+        self.add_param(Param("caption_zone", ParamType.BOOL, True, group="Guides"))
+
+    def render(self, ctx, inputs: dict[str, Any]) -> dict[str, Any]:
+        return {"image": inputs.get("image")}
+
+
+@register
 class OutputNode(VNode):
     type_name = "Output"
     category = "Composite"

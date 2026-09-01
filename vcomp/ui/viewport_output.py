@@ -34,9 +34,36 @@ class OutputViewport(ImageViewport):
         self._band: tuple[float, float, float, float] | None = None
         self._drag = None
         self._guides = ([], [])
+        self._safe_guides = False
+        self._safe_preset = "TikTok"
 
     def empty_text(self) -> str:
         return "Output\n(load a clip)"
+
+    def toggle_guides(self, on: bool | None = None) -> None:
+        self._safe_guides = (not self._safe_guides) if on is None else bool(on)
+        self.update()
+
+    def set_guide_preset(self, preset: str) -> None:
+        self._safe_preset = preset
+        self.update()
+
+    def _draw_safe_areas(self, p: QPainter) -> None:
+        from PySide6.QtCore import QRectF as _R
+
+        # approximate reserved UI zones as fractions of the 9:16 canvas
+        zones = {
+            "TikTok": [(0.0, 0.0, 1.0, 0.06), (0.86, 0.30, 1.0, 0.82),
+                       (0.0, 0.82, 1.0, 1.0)],
+            "Reels": [(0.0, 0.0, 1.0, 0.06), (0.86, 0.32, 1.0, 0.80),
+                      (0.0, 0.80, 1.0, 1.0)],
+            "Shorts": [(0.0, 0.0, 1.0, 0.05), (0.88, 0.40, 1.0, 0.78),
+                       (0.0, 0.84, 1.0, 1.0)],
+        }.get(self._safe_preset, [])
+        p.setPen(QPen(QColor(255, 60, 60, 120), 1, Qt.PenStyle.DashLine))
+        p.setBrush(QColor(255, 60, 60, 32))
+        for x0, y0, x1, y1 in zones:
+            p.drawRect(_R(self.norm_to_widget(x0, y0), self.norm_to_widget(x1, y1)))
 
     def set_frame(self, arr: np.ndarray) -> None:
         self.set_content_array(arr)
@@ -52,6 +79,8 @@ class OutputViewport(ImageViewport):
 
     # --------------------------------------------------------------- paint
     def paint_overlay(self, p: QPainter) -> None:
+        if self._safe_guides:
+            self._draw_safe_areas(p)
         if self._band:
             x0, y0, x1, y1 = self._band
             r = QRectF(self.norm_to_widget(x0, y0), self.norm_to_widget(x1, y1))

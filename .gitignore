@@ -6,10 +6,12 @@ __pycache__/
 .pytest_cache/
 
 # Build
+build/_work/
 build/*.build/
 build/*.dist/
 dist/
 *.spec.bak
+Output/
 
 # Vendored binaries (large; user supplies locally)
 vendor/ffmpeg/*.exe

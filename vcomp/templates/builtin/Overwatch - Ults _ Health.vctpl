@@ -1,0 +1,832 @@
+{
+  "format": "vctpl",
+  "version": 1,
+  "meta": {
+    "name": "Overwatch - Ults + Health",
+    "game": "Overwatch",
+    "author": "local",
+    "created": "2026-09-01T04:05:37.016911+00:00",
+    "tags": [
+      "fps",
+      "overwatch",
+      "hero"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale.",
+    "thumbnail": ""
+  },
+  "reference_resolution": {
+    "width": 1920,
+    "height": 1080
+  },
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "Clip Source_1",
+        "type": "Clip Source",
+        "title": "Clip Source",
+        "enabled": true,
+        "params": {
+          "file_path": {
+            "value": "",
+            "keyframes": []
+          },
+          "in_point": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "out_point": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "speed": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "loop": {
+            "value": false,
+            "keyframes": []
+          },
+          "stabilize_timebase": {
+            "value": true,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "Main Framing_2",
+        "type": "Main Framing",
+        "title": "Main Framing",
+        "enabled": true,
+        "params": {
+          "source_rect": {
+            "value": [
+              0.0,
+              0.0,
+              1.0,
+              1.0
+            ],
+            "keyframes": []
+          },
+          "fit_mode": {
+            "value": "fit_width",
+            "keyframes": []
+          },
+          "dest_position": {
+            "value": [
+              0.5,
+              0.5
+            ],
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "pan_x": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "pan_y": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "corner_radius": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "border_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "border_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "Blur Background_3",
+        "type": "Blur Background",
+        "title": "Blur Background",
+        "enabled": true,
+        "params": {
+          "fit": {
+            "value": "cover",
+            "keyframes": []
+          },
+          "zoom": {
+            "value": 1.1,
+            "keyframes": []
+          },
+          "blur_radius": {
+            "value": 60.0,
+            "keyframes": []
+          },
+          "blur_quality": {
+            "value": "fast",
+            "keyframes": []
+          },
+          "downsample_factor": {
+            "value": 4,
+            "keyframes": []
+          },
+          "brightness": {
+            "value": 0.9,
+            "keyframes": []
+          },
+          "saturation": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "contrast": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "tint_color": {
+            "value": [
+              0.2,
+              0.3,
+              0.5,
+              1
+            ],
+            "keyframes": []
+          },
+          "tint_amount": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "overlay_color": {
+            "value": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "keyframes": []
+          },
+          "overlay_opacity": {
+            "value": 0.25,
+            "keyframes": []
+          },
+          "vignette_amount": {
+            "value": 0.25,
+            "keyframes": []
+          },
+          "vignette_softness": {
+            "value": 0.3,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "Stack_4",
+        "type": "Stack",
+        "title": "Stack",
+        "enabled": true,
+        "params": {
+          "opacities": {
+            "value": "",
+            "keyframes": []
+          },
+          "blends": {
+            "value": "",
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "Output_5",
+        "type": "Output",
+        "title": "Output",
+        "enabled": true,
+        "params": {
+          "canvas_width": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "canvas_height": {
+            "value": 1920,
+            "keyframes": []
+          },
+          "fps": {
+            "value": "30",
+            "keyframes": []
+          },
+          "background_clear_color": {
+            "value": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "keyframes": []
+          },
+          "render_scale": {
+            "value": 2.0,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "HUD Region_6",
+        "type": "HUD Region",
+        "title": "Abilities",
+        "enabled": true,
+        "params": {
+          "label": {
+            "value": "Abilities",
+            "keyframes": []
+          },
+          "shape": {
+            "value": "rect",
+            "keyframes": []
+          },
+          "source_rect": {
+            "value": [
+              0.36,
+              0.9,
+              0.28,
+              0.09
+            ],
+            "keyframes": []
+          },
+          "corner_radii": {
+            "value": [
+              0.1,
+              0.1,
+              0.1,
+              0.1
+            ],
+            "keyframes": []
+          },
+          "polygon_points": {
+            "value": "",
+            "keyframes": []
+          },
+          "anchor": {
+            "value": "bottom-center",
+            "keyframes": []
+          },
+          "size_mode": {
+            "value": "relative",
+            "keyframes": []
+          },
+          "reference_height": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "ultrawide_policy": {
+            "value": "pin_to_edge",
+            "keyframes": []
+          },
+          "dest_x": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "dest_y": {
+            "value": 0.9,
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "link_scale": {
+            "value": true,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "dest_anchor": {
+            "value": "center",
+            "keyframes": []
+          },
+          "flip_h": {
+            "value": false,
+            "keyframes": []
+          },
+          "flip_v": {
+            "value": false,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 1.5,
+            "keyframes": []
+          },
+          "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "opacity": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "blend_mode": {
+            "value": "normal",
+            "keyframes": []
+          },
+          "plate_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "plate_color": {
+            "value": [
+              0,
+              0,
+              0,
+              0.55
+            ],
+            "keyframes": []
+          },
+          "plate_padding": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "plate_radius": {
+            "value": 0.15,
+            "keyframes": []
+          },
+          "plate_blur": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 6.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "solo": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "HUD Region_7",
+        "type": "HUD Region",
+        "title": "Health",
+        "enabled": true,
+        "params": {
+          "label": {
+            "value": "Health",
+            "keyframes": []
+          },
+          "shape": {
+            "value": "rect",
+            "keyframes": []
+          },
+          "source_rect": {
+            "value": [
+              0.3,
+              0.88,
+              0.24,
+              0.1
+            ],
+            "keyframes": []
+          },
+          "corner_radii": {
+            "value": [
+              0.1,
+              0.1,
+              0.1,
+              0.1
+            ],
+            "keyframes": []
+          },
+          "polygon_points": {
+            "value": "",
+            "keyframes": []
+          },
+          "anchor": {
+            "value": "bottom-center",
+            "keyframes": []
+          },
+          "size_mode": {
+            "value": "relative",
+            "keyframes": []
+          },
+          "reference_height": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "ultrawide_policy": {
+            "value": "pin_to_edge",
+            "keyframes": []
+          },
+          "dest_x": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "dest_y": {
+            "value": 0.95,
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "link_scale": {
+            "value": true,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "dest_anchor": {
+            "value": "center",
+            "keyframes": []
+          },
+          "flip_h": {
+            "value": false,
+            "keyframes": []
+          },
+          "flip_v": {
+            "value": false,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 1.5,
+            "keyframes": []
+          },
+          "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "opacity": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "blend_mode": {
+            "value": "normal",
+            "keyframes": []
+          },
+          "plate_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "plate_color": {
+            "value": [
+              0,
+              0,
+              0,
+              0.55
+            ],
+            "keyframes": []
+          },
+          "plate_padding": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "plate_radius": {
+            "value": 0.15,
+            "keyframes": []
+          },
+          "plate_blur": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 6.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "solo": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "HUD Region_8",
+        "type": "HUD Region",
+        "title": "Killfeed",
+        "enabled": true,
+        "params": {
+          "label": {
+            "value": "Killfeed",
+            "keyframes": []
+          },
+          "shape": {
+            "value": "rect",
+            "keyframes": []
+          },
+          "source_rect": {
+            "value": [
+              0.7,
+              0.06,
+              0.3,
+              0.2
+            ],
+            "keyframes": []
+          },
+          "corner_radii": {
+            "value": [
+              0.1,
+              0.1,
+              0.1,
+              0.1
+            ],
+            "keyframes": []
+          },
+          "polygon_points": {
+            "value": "",
+            "keyframes": []
+          },
+          "anchor": {
+            "value": "top-right",
+            "keyframes": []
+          },
+          "size_mode": {
+            "value": "relative",
+            "keyframes": []
+          },
+          "reference_height": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "ultrawide_policy": {
+            "value": "pin_to_edge",
+            "keyframes": []
+          },
+          "dest_x": {
+            "value": 0.72,
+            "keyframes": []
+          },
+          "dest_y": {
+            "value": 0.1,
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "link_scale": {
+            "value": true,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "dest_anchor": {
+            "value": "center",
+            "keyframes": []
+          },
+          "flip_h": {
+            "value": false,
+            "keyframes": []
+          },
+          "flip_v": {
+            "value": false,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 1.5,
+            "keyframes": []
+          },
+          "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "opacity": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "blend_mode": {
+            "value": "normal",
+            "keyframes": []
+          },
+          "plate_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "plate_color": {
+            "value": [
+              0,
+              0,
+              0,
+              0.55
+            ],
+            "keyframes": []
+          },
+          "plate_padding": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "plate_radius": {
+            "value": 0.15,
+            "keyframes": []
+          },
+          "plate_blur": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 6.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "solo": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      }
+    ],
+    "connections": [
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "Main Framing_2",
+        "to_port": "image"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "Blur Background_3",
+        "to_port": "image"
+      },
+      {
+        "from_node": "Blur Background_3",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Main Framing_2",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Stack_4",
+        "from_port": "image",
+        "to_node": "Output_5",
+        "to_port": "image"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "audio",
+        "to_node": "Output_5",
+        "to_port": "audio"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "HUD Region_6",
+        "to_port": "image"
+      },
+      {
+        "from_node": "HUD Region_6",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "HUD Region_7",
+        "to_port": "image"
+      },
+      {
+        "from_node": "HUD Region_7",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "HUD Region_8",
+        "to_port": "image"
+      },
+      {
+        "from_node": "HUD Region_8",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      }
+    ]
+  }
+}

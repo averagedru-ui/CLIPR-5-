@@ -115,8 +115,19 @@ def build_all() -> list[Template]:
     return out
 
 
+def _bundled_dir():
+    from pathlib import Path
+
+    from vcomp.util import paths
+
+    d = Path(paths.resource_path("vcomp", "templates", "builtin"))
+    return d if d.is_dir() else None
+
+
 def install_builtins(dest_dir) -> int:
-    """Write any missing built-in templates into ``dest_dir``. Returns count written."""
+    """Populate ``dest_dir`` with any missing built-in templates. Prefers copying
+    the shipped ``.vctpl`` files; falls back to building them in memory."""
+    import shutil
     from pathlib import Path
 
     from vcomp.templates.io import save_template
@@ -124,6 +135,16 @@ def install_builtins(dest_dir) -> int:
     dest = Path(dest_dir)
     dest.mkdir(parents=True, exist_ok=True)
     written = 0
+
+    bundled = _bundled_dir()
+    if bundled and bundled != dest:
+        for src in bundled.glob("*.vctpl"):
+            if not (dest / src.name).exists():
+                shutil.copy2(src, dest / src.name)
+                written += 1
+        if written or list(dest.glob("*.vctpl")):
+            return written
+
     for tpl in build_all():
         safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in tpl.meta.name)
         target = dest / f"{safe}.vctpl"

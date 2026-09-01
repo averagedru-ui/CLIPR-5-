@@ -29,6 +29,14 @@ def run() -> int:
 
     def emergency_save() -> None:
         settings.save()
+        try:
+            from vcomp.core.autosave import write_autosave
+            from vcomp.core.project import Project
+
+            if getattr(win, "graph", None) is not None and len(win.graph.nodes) > 1:
+                write_autosave(Project(graph=win.graph))
+        except Exception:  # noqa: BLE001
+            pass
 
     vlog.register_emergency_save(emergency_save)
     vlog.install_excepthook()
