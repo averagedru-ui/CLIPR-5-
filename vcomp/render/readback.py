@@ -4,7 +4,9 @@
 double-buffers ``read_into`` calls so export can overlap GPU readback with the
 next frame's compositing (one-frame latency); it is wired up in M6.
 
-All results are returned **top row first** (the FBO is stored bottom-up).
+All results are returned **top row first**. The compositor's ``fullscreen.vert``
+maps ``v_uv.y == 0`` to FBO memory row 0, so image-top is already row 0 and no
+vertical flip is needed here.
 """
 from __future__ import annotations
 
@@ -15,7 +17,7 @@ import numpy as np
 def read_fbo(fbo: moderngl.Framebuffer, components: int = 4) -> np.ndarray:
     raw = fbo.read(components=components, dtype="f1")
     arr = np.frombuffer(raw, np.uint8).reshape(fbo.height, fbo.width, components)
-    return np.flipud(arr).copy()
+    return arr.copy()
 
 
 class PBOReadback:
@@ -33,9 +35,7 @@ class PBOReadback:
         if self._primed:
             j = 1 - self._i
             raw = self._bufs[j].read()
-            prev = np.flipud(
-                np.frombuffer(raw, np.uint8).reshape(self.h, self.w, self.c)
-            ).copy()
+            prev = np.frombuffer(raw, np.uint8).reshape(self.h, self.w, self.c).copy()
         self._i = 1 - self._i
         self._primed = True
         return prev
@@ -44,9 +44,7 @@ class PBOReadback:
         """Return the last submitted frame (call once after the loop)."""
         j = 1 - self._i
         raw = self._bufs[j].read()
-        return np.flipud(
-            np.frombuffer(raw, np.uint8).reshape(self.h, self.w, self.c)
-        ).copy()
+        return np.frombuffer(raw, np.uint8).reshape(self.h, self.w, self.c).copy()
 
     def release(self) -> None:
         for b in self._bufs:

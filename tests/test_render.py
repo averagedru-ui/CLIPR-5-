@@ -62,6 +62,35 @@ def test_blend_modes(compositor, mode, expected):
     assert all(abs(g - e) <= 2 for g, e in zip(got, expected)), (mode, got)
 
 
+def test_orientation_not_flipped(compositor):
+    """A source with a red top half and blue bottom half must come out the same
+    way up through the full graph (regression: FBO->FBO compose was flipping Y)."""
+    from vcomp.core.graph import EvalContext, Graph
+
+    g = Graph()
+    clip = g.add_node("Clip Source")
+    fr = g.add_node("Main Framing")
+    st = g.add_node("Stack")
+    o = g.ensure_output()
+    g.connect(clip.id, "image", fr.id, "image")
+    g.connect(fr.id, "image", st.id, "layers")
+    g.connect(st.id, "image", o.id, "image")
+    g.set_param(o.id, "background_clear_color", (0, 0, 0, 1))
+    g.set_param(fr.id, "fit_mode", "fill")
+    clip.set_media_info(1280, 720, 30.0, 2.0)
+
+    src = np.zeros((720, 1280, 3), np.uint8)
+    src[:360] = (255, 0, 0)      # top red
+    src[360:] = (0, 0, 255)      # bottom blue
+    cw, ch, _ = g.canvas_params()
+    ctx = EvalContext(compositor, 0.0, cw, ch, 1.0, {clip.id: src})
+    out = g.evaluate(ctx)
+    ctx.release_all()
+
+    assert out[40, cw // 2, 0] > 200 and out[40, cw // 2, 2] < 60      # top red
+    assert out[ch - 40, cw // 2, 2] > 200 and out[ch - 40, cw // 2, 0] < 60  # bottom blue
+
+
 def test_readback_roundtrip(ctx):
     from vcomp.render.readback import read_fbo
 

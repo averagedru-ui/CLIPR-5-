@@ -5,7 +5,7 @@
     "name": "Arc Raiders - Corners",
     "game": "Arc Raiders",
     "author": "local",
-    "created": "2026-09-01T04:05:37.029133+00:00",
+    "created": "2026-09-01T20:09:57.752681+00:00",
     "tags": [
       "pve",
       "arcraiders"
@@ -53,6 +53,10 @@
           "stabilize_timebase": {
             "value": true,
             "keyframes": []
+          },
+          "orientation": {
+            "value": "none",
+            "keyframes": []
           }
         }
       },
@@ -86,7 +90,23 @@
             "value": 1.0,
             "keyframes": []
           },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
           "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "skew_x": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "skew_y": {
             "value": 0.0,
             "keyframes": []
           },
@@ -751,6 +771,72 @@
             "keyframes": []
           }
         }
+      },
+      {
+        "id": "Facecam_9",
+        "type": "Facecam",
+        "title": "Facecam",
+        "enabled": false,
+        "params": {
+          "source_rect": {
+            "value": [
+              0.0,
+              0.72,
+              0.22,
+              0.28
+            ],
+            "keyframes": []
+          },
+          "shape": {
+            "value": "rounded",
+            "keyframes": []
+          },
+          "placement": {
+            "value": "top-right",
+            "keyframes": []
+          },
+          "margin": {
+            "value": 0.03,
+            "keyframes": []
+          },
+          "dest_x": {
+            "value": 0.82,
+            "keyframes": []
+          },
+          "dest_y": {
+            "value": 0.12,
+            "keyframes": []
+          },
+          "size": {
+            "value": 0.34,
+            "keyframes": []
+          },
+          "border_width": {
+            "value": 3.0,
+            "keyframes": []
+          },
+          "border_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "feather": {
+            "value": 1.5,
+            "keyframes": []
+          },
+          "opacity": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "corner_radius": {
+            "value": 0.15,
+            "keyframes": []
+          }
+        }
       }
     ],
     "connections": [
@@ -822,6 +908,18 @@
       },
       {
         "from_node": "HUD Region_8",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "Facecam_9",
+        "to_port": "image"
+      },
+      {
+        "from_node": "Facecam_9",
         "from_port": "image",
         "to_node": "Stack_4",
         "to_port": "layers"

@@ -127,6 +127,17 @@ class MainWindow(QMainWindow):
         tpl = mb.addMenu("&Template")
         self._add(tpl, "Save as Template", "Ctrl+T", self._save_template)
         self._add(tpl, "Template Browser", "Ctrl+Shift+T", self._template_browser)
+        tpl.addSeparator()
+        wc = tpl.addMenu("Webcam Overlay")
+        self.act_webcam = QAction("Enabled", self, checkable=True)
+        self.act_webcam.toggled.connect(self._toggle_webcam)
+        wc.addAction(self.act_webcam)
+        place = wc.addMenu("Placement")
+        for name in ("top-left", "top-right", "bottom-left", "bottom-right",
+                     "top-center", "bottom-center"):
+            act = QAction(name, self)
+            act.triggered.connect(lambda _=False, p=name: self._set_webcam_placement(p))
+            place.addAction(act)
         render_menu = mb.addMenu("&Render")
         self._add(render_menu, "Export...", "Ctrl+E", self._export)
         self._add(render_menu, "Batch Export...", None, self._batch_export)
@@ -265,6 +276,10 @@ class MainWindow(QMainWindow):
     def _on_graph_changed(self) -> None:
         self.props.refresh()
         self._refresh_overlays()
+        fc = self._facecam_node()
+        self.act_webcam.blockSignals(True)
+        self.act_webcam.setChecked(fc is not None and fc.enabled)
+        self.act_webcam.blockSignals(False)
         self._rerender.start()
 
     # -------------------------------------------------------------- overlays
@@ -645,6 +660,57 @@ class MainWindow(QMainWindow):
         self.undo_stack.endMacro()
         self.canvas.sync_from_core()
         self.set_status(f"duplicated {src.type_name}")
+
+    # ---------------------------------------------------------------- webcam
+    def _facecam_node(self):
+        return next((n for n in self.graph.nodes.values()
+                     if n.type_name == "Facecam"), None)
+
+    def _toggle_webcam(self, on: bool) -> None:
+        from vcomp.ui.commands import AddNodeCmd, ConnectCmd, SetEnabledCmd
+        from vcomp.core.graph import Connection
+
+        fc = self._facecam_node()
+        if fc is None:
+            if not on:
+                return
+            clip = next(iter(self.graph.clip_source_nodes()), None)
+            stack = next((n for n in self.graph.nodes.values()
+                          if n.type_name == "Stack"), None)
+            nid = self.graph.new_id("Facecam")
+            self.undo_stack.beginMacro("Add Webcam Overlay")
+            self.undo_stack.push(AddNodeCmd(self.graph, "Facecam", nid))
+            for a, ap, b, bp in filter(None, [
+                (clip.id, "image", nid, "image") if clip else None,
+                (nid, "image", stack.id, "layers") if stack else None,
+            ]):
+                try:
+                    self.graph.connect(a, ap, b, bp)
+                    self.graph.disconnect(Connection(a, ap, b, bp))
+                    self.undo_stack.push(ConnectCmd(self.graph, Connection(a, ap, b, bp)))
+                except Exception:  # noqa: BLE001
+                    pass
+            self.undo_stack.endMacro()
+            self.canvas.sync_from_core()
+            self._selected_id = nid
+            self.props.show_node(nid)
+            self.set_status("webcam overlay added — set its source_rect to the "
+                            "webcam box in the source view")
+        else:
+            self.undo_stack.push(SetEnabledCmd(self.graph, fc.id, on))
+
+    def _set_webcam_placement(self, placement: str) -> None:
+        from vcomp.ui.commands import SetParamCmd
+
+        fc = self._facecam_node()
+        if fc is None:
+            self._toggle_webcam(True)
+            fc = self._facecam_node()
+        if fc is not None:
+            self.undo_stack.push(SetParamCmd(self.graph, fc.id, "placement", placement))
+            if not self.act_webcam.isChecked():
+                self.act_webcam.setChecked(True)
+            self.set_status(f"webcam -> {placement}")
 
     def _batch_export(self) -> None:
         from vcomp.ui.batch_dialog import BatchDialog

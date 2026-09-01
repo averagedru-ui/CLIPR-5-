@@ -80,6 +80,16 @@ _GAMES: list[tuple[str, str, list[str], list[str]]] = [
 ]
 
 
+def _add_facecam(g: Graph, clip_id: str, stack_id: str) -> None:
+    fc = g.add_node("Facecam", title="Facecam")
+    g.set_param(fc.id, "source_rect", (0.0, 0.72, 0.22, 0.28))   # bottom-left PiP
+    g.set_param(fc.id, "placement", "top-right")
+    g.set_param(fc.id, "size", 0.34)
+    g.set_enabled(fc.id, False)                                  # off until toggled
+    g.connect(clip_id, "image", fc.id, "image")
+    g.connect(fc.id, "image", stack_id, "layers")
+
+
 def build_all() -> list[Template]:
     out: list[Template] = []
 
@@ -89,6 +99,7 @@ def build_all() -> list[Template]:
         for key in region_keys:
             spec = dict(_CORNER[key])
             _add_region(g, clip_id, stack_id, label=key.title(), **spec)
+        _add_facecam(g, clip_id, stack_id)
         meta = TemplateMeta(name=name, game=game, tags=tags,
                             notes="Generic HUD positions - refine per your UI scale.")
         out.append(template_from_graph(g, meta, REF))
@@ -102,15 +113,19 @@ def build_all() -> list[Template]:
         _add_region(g, clip_id, stack_id, label=label,
                     source_rect=(0.02 + 0.8 * (i % 2), 0.02 + 0.8 * (i // 2), 0.16, 0.16),
                     anchor=anchor, dest_x=dx, dest_y=dy)
+    _add_facecam(g, clip_id, stack_id)
     out.append(template_from_graph(
         g, TemplateMeta(name="Generic Corners", game="", tags=["generic"],
-                        notes="Four empty corner regions to drag onto your HUD."), REF))
+                        notes="Four empty corner regions + a disabled webcam overlay."), REF))
 
     # simplest possible: blur bg + centered gameplay, no regions
-    g, _, _ = _base_graph("Blur Background")
+    g, clip_id, stack_id = _base_graph("Blur Background")
+    _add_facecam(g, clip_id, stack_id)
     out.append(template_from_graph(
         g, TemplateMeta(name="Blur Background + Centered Gameplay", game="",
-                        tags=["minimal"], notes="No HUD regions - the simplest start."),
+                        tags=["minimal"],
+                        notes="No HUD regions - the simplest start. Webcam overlay "
+                              "included but disabled."),
         REF))
     return out
 

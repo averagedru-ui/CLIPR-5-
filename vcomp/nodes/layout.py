@@ -11,10 +11,15 @@ from vcomp.nodes.base import VNode
 from vcomp.nodes.registry import register
 
 _FC_SHAPE = {"rect": 0, "rounded": 1, "circle": 2}
+_FC_PLACE = ("custom", "top-left", "top-right", "bottom-left", "bottom-right",
+             "top-center", "bottom-center")
 
 
 @register
 class Facecam(VNode):
+    """Webcam / facecam overlay lifted from a stream recording's picture-in-
+    picture box and re-placed on the vertical canvas. Enable/disable the node to
+    toggle it; ``placement`` snaps it to a corner or edge automatically."""
     type_name = "Facecam"
     category = "Framing"
     title_default = "Facecam"
@@ -22,11 +27,18 @@ class Facecam(VNode):
 
     def _define(self) -> None:
         self.add_input("image", WireType.IMAGE)
-        self.add_param(Param("source_rect", ParamType.RECT, (0.0, 0.72, 0.22, 0.28), group="Source"))
+        self.add_param(Param("source_rect", ParamType.RECT, (0.0, 0.72, 0.22, 0.28),
+                             group="Source",
+                             tooltip="The webcam box inside the source frame."))
         self.add_param(Param("shape", ParamType.ENUM, "rounded", choices=tuple(_FC_SHAPE), group="Source"))
+        self.add_param(Param("placement", ParamType.ENUM, "top-right", choices=_FC_PLACE,
+                             group="Placement",
+                             tooltip="Auto-snap to a spot on the 9:16; 'custom' uses dest_x/y."))
+        self.add_param(Param("margin", ParamType.FLOAT, 0.03, min=0.0, max=0.4, step=0.005,
+                             group="Placement", tooltip="Gap from the canvas edge for presets."))
         self.add_param(Param("dest_x", ParamType.FLOAT, 0.82, min=-0.5, max=1.5, step=0.005, group="Placement"))
-        self.add_param(Param("dest_y", ParamType.FLOAT, 0.9, min=-0.5, max=1.5, step=0.005, group="Placement"))
-        self.add_param(Param("size", ParamType.FLOAT, 0.28, min=0.02, max=1.0, step=0.01, group="Placement"))
+        self.add_param(Param("dest_y", ParamType.FLOAT, 0.12, min=-0.5, max=1.5, step=0.005, group="Placement"))
+        self.add_param(Param("size", ParamType.FLOAT, 0.34, min=0.02, max=1.0, step=0.01, group="Placement"))
         self.add_param(Param("border_width", ParamType.FLOAT, 3.0, min=0, max=40, group="Style"))
         self.add_param(Param("border_color", ParamType.COLOR, (1, 1, 1, 1), group="Style"))
         self.add_param(Param("feather", ParamType.FLOAT, 1.5, min=0, max=64, group="Style"))
@@ -36,6 +48,21 @@ class Facecam(VNode):
 
     def is_time_dependent(self) -> bool:
         return True
+
+    def dest_center(self, dw: float, dh: float) -> tuple[float, float]:
+        place = self.params["placement"].value
+        if place == "custom":
+            return float(self.params["dest_x"].value), float(self.params["dest_y"].value)
+        m = float(self.params["margin"].value)
+        left = m + dw / 2
+        right = 1.0 - m - dw / 2
+        top = m + dh / 2
+        bot = 1.0 - m - dh / 2
+        return {
+            "top-left": (left, top), "top-right": (right, top),
+            "bottom-left": (left, bot), "bottom-right": (right, bot),
+            "top-center": (0.5, top), "bottom-center": (0.5, bot),
+        }.get(place, (0.5, top))
 
     def render(self, ctx, inputs: dict[str, Any]) -> dict[str, Any]:
         src = inputs.get("image")
@@ -50,11 +77,11 @@ class Facecam(VNode):
         shape = _FC_SHAPE.get(self.params["shape"].value, 1)
         gl_shape = {0: 0, 1: 1, 2: 2}[shape]
         size = float(self.params["size"].value)
-        aspect = (sw * src.width) / max(1e-6, sh * src.height)
+        aspect = (sw * src.width) / max(1e-6, sh * src.height)   # box pixel w/h
         dw = size
-        dh = size * aspect * (ctx.canvas_w / ctx.canvas_h)
-        cx = float(self.params["dest_x"].value)
-        cy = float(self.params["dest_y"].value)
+        dh = size * (ctx.canvas_w / ctx.canvas_h) / max(1e-6, aspect)
+
+        cx, cy = self.dest_center(dw, dh)
         dest = (cx - dw / 2, cy - dh / 2, cx + dw / 2, cy + dh / 2)
 
         ctx.compositor.region(
