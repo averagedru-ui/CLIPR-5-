@@ -3,11 +3,12 @@
 Node-based compositor that turns 16:9 gameplay recordings into 9:16 vertical
 clips **without cropping away the HUD**. Windows desktop app.
 
-Status: **M6 — export**. ffmpeg subprocess encoder (RGBA frames over stdin,
-audio muxed from source, stderr drained on a thread), encoder detection,
-export dialog with presets / live estimate / progress / cancel. Preview and
-export render through one shared function — the golden-frame test asserts they
-match within 1/255.
+Status: **M7 — templates**. `.vctpl` save/load with versioned migration;
+apply remaps every HUD Region source rect from the template's reference
+resolution to the current clip (anchor + relative/fixed + ultrawide policy),
+preserving the loaded clip. Template browser, Save-as-Template with thumbnail,
+11 built-in starter templates, `.vcproj` projects with media relink, batch
+export.
 
 ## Dev setup
 

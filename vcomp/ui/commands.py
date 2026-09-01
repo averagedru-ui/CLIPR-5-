@@ -86,6 +86,22 @@ class RemoveNodeCmd(QUndoCommand):
                 pass
 
 
+class ReplaceGraphCmd(QUndoCommand):
+    """Whole-graph swap as one undo entry (template apply, new project)."""
+
+    def __init__(self, graph: Graph, new_dict: dict, *, text: str = "Apply template"):
+        super().__init__(text)
+        self._g = graph
+        self._before = graph.to_dict()
+        self._after = new_dict
+
+    def redo(self) -> None:
+        self._g.load_dict(self._after)
+
+    def undo(self) -> None:
+        self._g.load_dict(self._before)
+
+
 class ConnectCmd(QUndoCommand):
     def __init__(self, graph: Graph, conn: Connection):
         super().__init__("Connect")

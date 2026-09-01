@@ -55,7 +55,9 @@ class MainWindow(QMainWindow):
 
         self._info: MediaInfo | None = None
         self._last_frame: np.ndarray | None = None
+        self._last_output: np.ndarray | None = None
         self._selected_id: str | None = None
+        self._project_path = None
 
         self._rerender = QTimer(self)
         self._rerender.setSingleShot(True)
@@ -88,10 +90,12 @@ class MainWindow(QMainWindow):
     def _build_menus(self) -> None:
         mb = self.menuBar()
         f = mb.addMenu("&File")
-        self._add(f, "New", "Ctrl+N", self._todo)
+        self._add(f, "New Project", "Ctrl+N", self._new_project)
+        self._add(f, "Open Project...", "Ctrl+Shift+O", self._open_project)
         self._add(f, "Open Clip...", "Ctrl+O", self._open_clip)
         f.addSeparator()
-        self._add(f, "Save", "Ctrl+S", self._todo)
+        self._add(f, "Save Project", "Ctrl+S", self._save_project)
+        self._add(f, "Save Project As...", "Ctrl+Shift+S", self._save_project_as)
         self._add(f, "Export...", "Ctrl+E", self._export)
         f.addSeparator()
         self._add(f, "Quit", "Ctrl+Q", self.close)
@@ -113,9 +117,11 @@ class MainWindow(QMainWindow):
                 sub.addAction(act)
 
         tpl = mb.addMenu("&Template")
-        self._add(tpl, "Save as Template", "Ctrl+T", self._todo)
-        self._add(tpl, "Template Browser", "Ctrl+Shift+T", self._todo)
-        mb.addMenu("&Render")
+        self._add(tpl, "Save as Template", "Ctrl+T", self._save_template)
+        self._add(tpl, "Template Browser", "Ctrl+Shift+T", self._template_browser)
+        render_menu = mb.addMenu("&Render")
+        self._add(render_menu, "Export...", "Ctrl+E", self._export)
+        self._add(render_menu, "Batch Export...", None, self._batch_export)
         self._view_menu = mb.addMenu("&View")
         h = mb.addMenu("&Help")
         self._add(h, "About VCOMP", None, self._about)
@@ -403,6 +409,7 @@ class MainWindow(QMainWindow):
         self.renderer.submit(idx, frames, idx / fps if fps else 0.0)
 
     def _on_composited(self, index: int, arr: np.ndarray) -> None:
+        self._last_output = arr
         if index == self.timeline.frame:
             self.output_view.set_frame(arr)
 
@@ -436,6 +443,95 @@ class MainWindow(QMainWindow):
                           base64.b64encode(bytes(self.saveState())).decode("ascii"))
         self.settings.save()
         super().closeEvent(event)
+
+    # ------------------------------------------------------------- templates
+    def _save_template(self) -> None:
+        from vcomp.ui.template_browser import SaveTemplateDialog
+
+        dlg = SaveTemplateDialog(self, self.graph, self._src_dims(), self._last_output)
+        if dlg.exec() and dlg.saved_path:
+            self.set_status(f"saved template {dlg.saved_path.name}")
+
+    def _template_browser(self) -> None:
+        from vcomp.ui.template_browser import TemplateBrowser
+
+        TemplateBrowser(self, self._apply_template).exec()
+
+    def _apply_template(self, tpl) -> None:
+        from vcomp.templates.io import apply_template
+        from vcomp.ui.commands import ReplaceGraphCmd
+
+        tmp = Graph()
+        tmp.load_dict(self.graph.to_dict())
+        warns = apply_template(tmp, tpl, self._src_dims())
+        self.undo_stack.push(ReplaceGraphCmd(self.graph, tmp.to_dict(),
+                                             text=f"Apply {tpl.meta.name}"))
+        if self._info:
+            for n in self.graph.clip_source_nodes():
+                n.params["file_path"].set(self._info.path)
+                n.set_media_info(self._info.width, self._info.height,
+                                 self._info.fps, self._info.duration)
+        self.canvas.sync_from_core()
+        self._refresh_overlays()
+        self._render_current()
+        if warns:
+            self.set_status("  ".join(warns))
+        else:
+            self.set_status(f"applied template {tpl.meta.name}")
+
+    # -------------------------------------------------------------- project
+    def _new_project(self) -> None:
+        self.graph.load_dict(build_default_graph(Graph()).to_dict())
+        self.undo_stack.clear()
+        self._project_path = None
+        self.canvas.sync_from_core()
+        self._render_current()
+        self.set_status("new project")
+
+    def _open_project(self) -> None:
+        from vcomp.core.project import Project
+
+        path, _ = QFileDialog.getOpenFileName(self, "Open Project", "", "VCOMP project (*.vcproj)")
+        if not path:
+            return
+        try:
+            proj = Project.load(path)
+        except (ValueError, OSError) as exc:
+            QMessageBox.critical(self, "Open", str(exc))
+            return
+        self.graph.load_dict(proj.graph.to_dict())
+        self.undo_stack.clear()
+        self._project_path = path
+        self.canvas.sync_from_core()
+        clip = next(iter(self.graph.clip_source_nodes()), None)
+        if clip and clip.params["file_path"].value:
+            self.fetcher.open(clip.params["file_path"].value)
+        self.set_status(f"opened {path}")
+
+    def _save_project(self) -> None:
+        if self._project_path:
+            self._write_project(self._project_path)
+        else:
+            self._save_project_as()
+
+    def _save_project_as(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(self, "Save Project", "", "VCOMP project (*.vcproj)")
+        if path:
+            self._write_project(path)
+
+    def _write_project(self, path) -> None:
+        from vcomp.core.project import Project
+
+        proj = Project(graph=self.graph, in_point=self.timeline.in_point,
+                       out_point=self.timeline.out_point)
+        proj.save(path)
+        self._project_path = path
+        self.set_status(f"saved {path}")
+
+    def _batch_export(self) -> None:
+        from vcomp.ui.batch_dialog import BatchDialog
+
+        BatchDialog(self, self.graph).exec()
 
     def _export(self) -> None:
         if not self._info:
