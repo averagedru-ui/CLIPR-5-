@@ -517,11 +517,17 @@ class MainWindow(QMainWindow):
         if self._info:
             for n in self.graph.clip_source_nodes():
                 n.params["file_path"].set(self._info.path)
+                if "orientation" in n.params:
+                    n.params["orientation"].set("none")
                 n.set_media_info(self._info.display_width, self._info.display_height,
                                  self._info.fps, self._info.duration)
         self.canvas.sync_from_core()
         self._refresh_overlays()
-        self._render_current()
+        # re-decode so the clip's orientation matches the (reset) Clip Source param
+        if self._info:
+            self.fetcher.open(self._info.path, self._orientation_override())
+        else:
+            self._render_current()
         if warns:
             self.set_status("  ".join(warns))
         else:

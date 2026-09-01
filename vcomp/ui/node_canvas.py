@@ -183,6 +183,52 @@ class NodeCanvas(QObject):
                     pass
 
     # ------------------------------------------------------- core -> canvas
+    def _layout_positions(self) -> dict[str, tuple[float, float]]:
+        """Left-to-right layout: column = longest path to the Output node,
+        rows stacked within a column, no overlaps."""
+        nodes = self.core.nodes
+        succ: dict[str, list[str]] = {n: [] for n in nodes}
+        pred: dict[str, list[str]] = {n: [] for n in nodes}
+        for c in self.core.connections:
+            if c.from_node in nodes and c.to_node in nodes:
+                succ[c.from_node].append(c.to_node)
+                pred[c.to_node].append(c.from_node)
+
+        # depth = longest chain from any source
+        depth: dict[str, int] = {}
+
+        def _depth(nid: str, seen: frozenset) -> int:
+            if nid in depth:
+                return depth[nid]
+            if nid in seen or not pred[nid]:
+                d = 0
+            else:
+                d = 1 + max(_depth(p, seen | {nid}) for p in pred[nid])
+            depth[nid] = d
+            return d
+
+        for nid in nodes:
+            _depth(nid, frozenset())
+
+        # keep the Output node rightmost
+        try:
+            out_id = self.core.output_node().id
+            others = [d for n, d in depth.items() if n != out_id]
+            depth[out_id] = (max(others) + 1) if others else 0
+        except Exception:  # noqa: BLE001
+            pass
+
+        cols: dict[int, list[str]] = {}
+        for nid, d in sorted(depth.items(), key=lambda kv: (kv[1], nodes[kv[0]].category)):
+            cols.setdefault(d, []).append(nid)
+
+        dx, dy = 320, 170
+        pos: dict[str, tuple[float, float]] = {}
+        for d, ids in cols.items():
+            for row, nid in enumerate(ids):
+                pos[nid] = (80 + d * dx, 80 + row * dy)
+        return pos
+
     def sync_from_core(self) -> None:
         self._syncing = True
         try:
@@ -190,12 +236,10 @@ class NodeCanvas(QObject):
             self._n2c.clear()
             self._c2n.clear()
 
-            col = {}
-            for i, (cid, node) in enumerate(self.core.nodes.items()):
+            layout = self._layout_positions()
+            for cid, node in self.core.nodes.items():
                 ngtype = f"{_IDENT}.{_clsname(node.type_name)}"
-                x = 100 + 260 * col.get(node.category, 0)
-                y = 80 + 150 * list(_CATS).index(node.category if node.category in _CATS else "Misc")
-                col[node.category] = col.get(node.category, 0) + 1
+                x, y = layout.get(cid, (100, 100))
                 ng_node = self.ng.create_node(ngtype, name=node.title, pos=(x, y))
                 for name, pm in node.params.items():
                     ng_node.set_property(_PFX + name, _jsonable(pm.value), push_undo=False)
