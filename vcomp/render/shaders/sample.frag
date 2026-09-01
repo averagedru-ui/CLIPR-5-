@@ -32,8 +32,8 @@ void main() {
     p = mat2(cs, -sn, sn, cs) * p;
     p.x += p.y * u_skew.x;
     p.y += p.x * u_skew.y;
-    p /= max(u_scale, vec2(1e-4));
-    p /= max(fit, vec2(1e-4));
+    p /= max(u_scale, vec2(1e-4));   // zoom in -> sample a smaller region
+    p *= fit;                        // map canvas aspect onto the source
     vec2 uv = p + u_anchor;
 
     vec4 col;
