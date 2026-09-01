@@ -32,6 +32,7 @@ from vcomp.util.settings import Settings
 log = logging.getLogger("vcomp.ui")
 
 _VIDEO_FILTER = "Video (*.mp4 *.mov *.mkv *.avi *.webm *.m4v);;All files (*)"
+_VIDEO_FILTER_EXT = (".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v")
 
 
 def _placeholder(text: str) -> QWidget:
@@ -47,6 +48,7 @@ class MainWindow(QMainWindow):
         self.settings = settings
         self.setWindowTitle("VCOMP")
         self.resize(1600, 950)
+        self.setAcceptDrops(True)
 
         load_builtin_nodes()
         self.graph = Graph()
@@ -172,6 +174,8 @@ class MainWindow(QMainWindow):
         self.source_view.editRect.connect(self._on_edit_rect)
         self.source_view.selectRegion.connect(self._on_region_selected)
         self.source_view.pickColor.connect(self._on_pick_color)
+        self.source_view.openClip.connect(self._open_clip)
+        self.source_view.fileDropped.connect(self._load_clip)
         self.output_view.moveDest.connect(self._on_move_dest)
         self.output_view.scaleDest.connect(self._on_scale_dest)
         self.output_view.rotateDest.connect(self._on_rotate_dest)
@@ -415,8 +419,24 @@ class MainWindow(QMainWindow):
         start = recent[0] if recent else ""
         path, _ = QFileDialog.getOpenFileName(self, "Open Clip", start, _VIDEO_FILTER)
         if path:
-            self.set_status(f"opening {path} ...")
-            self.fetcher.open(path, self._orientation_override())
+            self._load_clip(path)
+
+    def _load_clip(self, path: str) -> None:
+        self.set_status(f"opening {path} ...")
+        self.fetcher.open(path, self._orientation_override())
+
+    def dragEnterEvent(self, e) -> None:  # noqa: N802
+        if e.mimeData().hasUrls() and any(
+                u.toLocalFile().lower().endswith(_VIDEO_FILTER_EXT)
+                for u in e.mimeData().urls()):
+            e.acceptProposedAction()
+
+    def dropEvent(self, e) -> None:  # noqa: N802
+        for u in e.mimeData().urls():
+            p = u.toLocalFile()
+            if p.lower().endswith(_VIDEO_FILTER_EXT):
+                self._load_clip(p)
+                return
 
     def _orientation_override(self) -> int | None:
         clip = next(iter(self.graph.clip_source_nodes()), None)

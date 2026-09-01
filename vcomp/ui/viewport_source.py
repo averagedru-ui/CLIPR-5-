@@ -15,11 +15,13 @@ from __future__ import annotations
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from vcomp.ui import theme
 from vcomp.ui.snapping import edges, snap_point
 from vcomp.ui.viewport_base import ImageViewport
+
+_VIDEO_EXT = (".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v")
 
 _HANDLES = ("nw", "n", "ne", "e", "se", "s", "sw", "w")
 _HS = 6.0   # handle half-size px
@@ -30,6 +32,8 @@ class SourceViewport(ImageViewport):
     editRect = Signal(str, tuple, bool)                   # node_id, (x,y,w,h), final
     selectRegion = Signal(str)
     pickColor = Signal(tuple)
+    openClip = Signal()                                   # "Open Clip" button
+    fileDropped = Signal(str)                             # a video file dropped
 
     def __init__(self) -> None:
         super().__init__(16 / 9)
@@ -41,13 +45,50 @@ class SourceViewport(ImageViewport):
         self._rubber: QRectF | None = None
         self._guides = ([], [])
 
+        self.setAcceptDrops(True)
+        self._open_btn = QPushButton("Open Clip…", self)
+        self._open_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._open_btn.setStyleSheet(
+            f"QPushButton{{background:{theme.ACCENT}; color:white; border:none;"
+            f" border-radius:6px; padding:10px 22px; font-size:14px;}}"
+            f"QPushButton:hover{{background:#3f7ae0;}}")
+        self._open_btn.clicked.connect(self.openClip)
+        self._open_btn.adjustSize()
+        self._position_button()
+
     def empty_text(self) -> str:
-        return "No clip loaded\nFile > Open  (Ctrl+O)"
+        return "\n\n\ndrop a video here  ·  Ctrl+O"
+
+    def _position_button(self) -> None:
+        self._open_btn.move((self.width() - self._open_btn.width()) // 2,
+                            (self.height() - self._open_btn.height()) // 2)
+        self._open_btn.setVisible(self._frame is None)
+        if self._frame is None:
+            self._open_btn.raise_()
+
+    def resizeEvent(self, e) -> None:  # noqa: N802
+        super().resizeEvent(e)
+        self._position_button()
+
+    # ---------------------------------------------------------- drag & drop
+    def dragEnterEvent(self, e) -> None:  # noqa: N802
+        if e.mimeData().hasUrls() and any(
+                u.toLocalFile().lower().endswith(_VIDEO_EXT) for u in e.mimeData().urls()):
+            e.acceptProposedAction()
+
+    def dropEvent(self, e) -> None:  # noqa: N802
+        for u in e.mimeData().urls():
+            p = u.toLocalFile()
+            if p.lower().endswith(_VIDEO_EXT):
+                self.fileDropped.emit(p)
+                e.acceptProposedAction()
+                return
 
     # ------------------------------------------------------------- external
     def set_frame(self, arr: np.ndarray) -> None:
         self._frame = arr
         self.set_content_array(arr)
+        self._position_button()
 
     def set_regions(self, regions: list[dict]) -> None:
         self._regions = regions
