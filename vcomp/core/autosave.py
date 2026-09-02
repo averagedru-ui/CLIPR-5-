@@ -1,7 +1,7 @@
 """Autosave + crash recovery.
 
 Every ``INTERVAL`` seconds the current project is written to
-``%APPDATA%/VCOMP/autosave/`` with a timestamped name; the newest ``KEEP`` are
+``%APPDATA%/CLIPR/autosave/`` with a timestamped name; the newest ``KEEP`` are
 retained. On startup :func:`pending_recovery` reports the newest autosave so the
 app can offer to restore it.
 """

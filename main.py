@@ -1,4 +1,4 @@
-"""VCOMP entry point.
+"""CLIPR entry point.
 
 Usage:
     python main.py                 launch the GUI
@@ -16,7 +16,7 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
 
     if "--version" in argv:
-        print(f"VCOMP {__version__}")
+        print(f"CLIPR {__version__}")
         return 0
 
     if "--render" in argv:

@@ -36,12 +36,12 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [],
     exclude_binaries=True,
-    name="VCOMP",
+    name="CLIPR",
     console=False,
     icon=str(ROOT / "assets" / "vcomp.ico") if (ROOT / "assets" / "vcomp.ico").exists() else None,
 )
 coll = COLLECT(
     exe, a.binaries, a.datas,
     strip=False, upx=False,
-    name="VCOMP",
+    name="CLIPR",
 )

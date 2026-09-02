@@ -1,4 +1,4 @@
-# VCOMP
+# CLIPR
 
 Node-based compositor that turns 16:9 gameplay recordings into 9:16 vertical
 clips **without cropping away the HUD**. Windows desktop app, fully offline.
@@ -62,10 +62,10 @@ https://github.com/BtbN/FFmpeg-Builds
 ## Packaging
 
 ```
-.venv\Scripts\pyinstaller --noconfirm build/vcomp.spec
+.venv\Scripts\pyinstaller --noconfirm build/clipr.spec
 ```
 
-Produces `dist/VCOMP/VCOMP.exe` (onedir — fast startup, AV-friendly). Optional
+Produces `dist/CLIPR/CLIPR.exe` (onedir — fast startup, AV-friendly). Optional
 installer: compile `build/installer.iss` with Inno Setup 6.
 
 ## Layout

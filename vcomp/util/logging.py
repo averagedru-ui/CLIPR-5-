@@ -1,6 +1,6 @@
 """Logging setup and the global exception hook.
 
-Logs go to the console and to a rotating file under ``%APPDATA%/VCOMP/logs/``.
+Logs go to the console and to a rotating file under ``%APPDATA%/CLIPR/logs/``.
 The exception hook logs the traceback, shows a Qt dialog with a Copy button,
 and attempts an emergency project save if a hook is registered.
 """
@@ -75,7 +75,7 @@ def _show_dialog(text: str) -> None:
             return
         box = QMessageBox()
         box.setIcon(QMessageBox.Icon.Critical)
-        box.setWindowTitle("VCOMP - Unexpected Error")
+        box.setWindowTitle("CLIPR - Unexpected Error")
         box.setText("An unexpected error occurred. The app tried to save your work.")
         box.setDetailedText(text)
         copy_btn = box.addButton("Copy", QMessageBox.ButtonRole.ActionRole)

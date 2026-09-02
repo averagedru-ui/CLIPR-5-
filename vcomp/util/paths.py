@@ -1,4 +1,4 @@
-"""Filesystem path resolution for VCOMP.
+"""Filesystem path resolution for CLIPR.
 
 Works both in a normal dev checkout and inside a PyInstaller ``--onedir`` bundle
 (where bundled data lives under ``sys._MEIPASS``). Nothing here touches the
@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 
-APP_NAME = "VCOMP"
+APP_NAME = "CLIPR"
 
 
 def is_frozen() -> bool:
@@ -48,7 +48,7 @@ def ffprobe_exe() -> Path:
 
 
 def appdata_dir() -> Path:
-    """Per-user writable directory: ``%APPDATA%/VCOMP`` (or XDG equivalent).
+    """Per-user writable directory: ``%APPDATA%/CLIPR`` (or XDG equivalent).
 
     Created on first access.
     """

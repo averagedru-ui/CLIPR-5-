@@ -10,7 +10,7 @@ def test_version_flag(capsys):
     import main
 
     assert main.main(["--version"]) == 0
-    assert "VCOMP" in capsys.readouterr().out
+    assert "CLIPR" in capsys.readouterr().out
 
 
 def test_paths_appdata(tmp_path, monkeypatch):
@@ -54,6 +54,6 @@ def test_main_window_constructs(tmp_path, monkeypatch):
 
     app = QApplication.instance() or QApplication([])
     win = MainWindow(Settings())
-    assert win.windowTitle() == "VCOMP"
+    assert win.windowTitle() == "CLIPR"
     assert win.dock_source is not None and win.dock_output is not None
     win.close()

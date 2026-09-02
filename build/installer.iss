@@ -1,10 +1,10 @@
-; Inno Setup script for VCOMP.  Build the app first:
-;   pyinstaller build/vcomp.spec
+; Inno Setup script for CLIPR.  Build the app first:
+;   pyinstaller build/clipr.spec
 ; then compile this with Inno Setup 6:  ISCC.exe build\installer.iss
 
-#define AppName "VCOMP"
+#define AppName "CLIPR"
 #define AppVersion "0.0.1"
-#define AppExe "VCOMP.exe"
+#define AppExe "CLIPR.exe"
 
 [Setup]
 AppName={#AppName}
@@ -12,14 +12,14 @@ AppVersion={#AppVersion}
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
-OutputBaseFilename=VCOMP-Setup
+OutputBaseFilename=CLIPR-Setup
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 
 [Files]
-Source: "..\dist\VCOMP\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
+Source: "..\dist\CLIPR\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"

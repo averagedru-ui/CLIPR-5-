@@ -1,4 +1,4 @@
-"""Application settings persisted as JSON in ``%APPDATA%/VCOMP/settings.json``.
+"""Application settings persisted as JSON in ``%APPDATA%/CLIPR/settings.json``.
 
 Small, flat, forgiving: unknown keys are preserved, missing keys fall back to
 ``DEFAULTS``, and a corrupt file is backed up rather than crashing startup.

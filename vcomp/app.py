@@ -16,11 +16,11 @@ log = logging.getLogger("vcomp.app")
 
 def run() -> int:
     vlog.setup_logging()
-    log.info("VCOMP starting")
+    log.info("CLIPR starting")
 
     app = QApplication(sys.argv)
-    app.setApplicationName("VCOMP")
-    app.setOrganizationName("VCOMP")
+    app.setApplicationName("CLIPR")
+    app.setOrganizationName("CLIPR")
 
     settings = Settings()
     apply_theme(app)

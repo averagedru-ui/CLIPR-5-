@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings: Settings) -> None:
         super().__init__()
         self.settings = settings
-        self.setWindowTitle("VCOMP")
+        self.setWindowTitle("CLIPR")
         self.resize(1600, 950)
         self.setAcceptDrops(True)
 
@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
         self._add(render_menu, "Batch Export...", None, self._batch_export)
         self._view_menu = mb.addMenu("&View")
         h = mb.addMenu("&Help")
-        self._add(h, "About VCOMP", None, self._about)
+        self._add(h, "About CLIPR", None, self._about)
 
     def _add(self, menu, text, shortcut, slot) -> QAction:
         act = QAction(text, self)
@@ -515,7 +515,7 @@ class MainWindow(QMainWindow):
 
     def _on_fail(self, msg: str) -> None:
         self.set_status(f"error: {msg}")
-        QMessageBox.critical(self, "VCOMP", f"Error:\n{msg}")
+        QMessageBox.critical(self, "CLIPR", f"Error:\n{msg}")
 
     # ---------------------------------------------------------------- layout
     def _restore_layout(self) -> None:
@@ -593,7 +593,7 @@ class MainWindow(QMainWindow):
     def _open_project(self) -> None:
         from vcomp.core.project import Project
 
-        path, _ = QFileDialog.getOpenFileName(self, "Open Project", "", "VCOMP project (*.vcproj)")
+        path, _ = QFileDialog.getOpenFileName(self, "Open Project", "", "CLIPR project (*.vcproj)")
         if not path:
             return
         try:
@@ -617,7 +617,7 @@ class MainWindow(QMainWindow):
             self._save_project_as()
 
     def _save_project_as(self) -> None:
-        path, _ = QFileDialog.getSaveFileName(self, "Save Project", "", "VCOMP project (*.vcproj)")
+        path, _ = QFileDialog.getSaveFileName(self, "Save Project", "", "CLIPR project (*.vcproj)")
         if path:
             self._write_project(path)
 
@@ -767,5 +767,5 @@ class MainWindow(QMainWindow):
         self.set_status("not implemented yet")
 
     def _about(self) -> None:
-        QMessageBox.about(self, "About VCOMP",
-                          "VCOMP - node-based vertical gameplay compositor.\nMilestone M3.")
+        QMessageBox.about(self, "About CLIPR",
+                          "CLIPR - node-based vertical gameplay compositor.")
