@@ -155,8 +155,9 @@ class BlurBackground(VNode):
         self.add_param(Param("fit", ParamType.ENUM, "cover",
                              choices=("cover", "contain", "stretch", "mirror_edges"), group="Fit"))
         self.add_param(Param("zoom", ParamType.FLOAT, 1.1, min=1.0, max=3.0, step=0.01, group="Fit"))
-        self.add_param(Param("blur_radius", ParamType.FLOAT, 60.0, min=0, max=200, group="Blur"))
-        self.add_param(Param("blur_quality", ParamType.ENUM, "fast", choices=("fast", "high"),
+        self.add_param(Param("blur_radius", ParamType.FLOAT, 80.0, min=0, max=600, step=1,
+                             group="Blur", tooltip="Higher = heavier blur (iterated Gaussian)."))
+        self.add_param(Param("blur_quality", ParamType.ENUM, "high", choices=("fast", "high"),
                              group="Blur"))
         self.add_param(Param("downsample_factor", ParamType.INT, 4, min=1, max=8, group="Blur"))
         self.add_param(Param("brightness", ParamType.FLOAT, 0.9, min=0, max=2, step=0.01, group="Look"))
@@ -195,18 +196,25 @@ class BlurBackground(VNode):
                     src_aspect=src.width / src.height,
                     canvas_aspect=ctx.canvas_w / ctx.canvas_h)
 
-        # 2. blur (downsampled)
-        ds = max(1, int(self.params["downsample_factor"].value))
-        bw, bh = max(2, cw // ds), max(2, ch // ds)
+        # 2. blur - iterated separable Gaussian on a downsampled buffer.
+        #    N iterations of an 8-tap Gaussian approximate a much wider kernel;
+        #    the working buffer shrinks as the radius grows so huge blurs stay cheap.
+        rad_px = float(self.params["blur_radius"].value)
+        ds = min(16, max(1, int(self.params["downsample_factor"].value) + int(rad_px // 50)))
+        bw, bh = max(4, cw // ds), max(4, ch // ds)
         small = ctx.acquire_fbo(bw, bh)
         comp.sample(small, covered.color_attachments[0], fit=3)   # stretch-copy down
         tmp = ctx.acquire_fbo(bw, bh)
         blr = ctx.acquire_fbo(bw, bh)
-        rad = float(self.params["blur_radius"].value) / ds / 6.0
-        iters = 3 if self.params["blur_quality"].value == "high" else 1
+
+        per_iter = 8.0
+        target = rad_px / ds
+        iters = int(max(1, min(48, round((target / per_iter) ** 2 + target / per_iter))))
+        if self.params["blur_quality"].value == "high":
+            iters = min(72, iters * 2)
         srct = small.color_attachments[0]
         for _ in range(iters):
-            comp.gaussian_blur(srct, rad, bw, bh, blr, tmp)
+            comp.gaussian_blur(srct, per_iter, bw, bh, blr, tmp)
             srct = blr.color_attachments[0]
         up = ctx.acquire_fbo()
         comp.sample(up, srct, fit=3)

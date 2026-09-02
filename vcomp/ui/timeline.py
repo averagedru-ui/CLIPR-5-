@@ -1,18 +1,20 @@
-"""Transport / timeline bar.
+"""Transport / timeline.
 
-M1 scope: scrub slider, play/pause, single-frame step, jump to in/out, set
-in/out, loop toggle, a seconds+frames readout, and a thin cache bar showing
-which frames are decoded and warm. Keyframe track lands in M5.
+A scrubbable time ruler (click or drag anywhere to move the playhead), transport
+buttons, in/out range, loop, a seconds+frames readout, and a cache bar showing
+which frames are decoded. Playback runs against a wall clock and drops frames to
+hold real time when rendering can't keep up.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QRect, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter
+import time
+
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSlider,
     QVBoxLayout,
     QWidget,
 )
@@ -22,23 +24,23 @@ from vcomp.ui import theme
 
 def _fmt(frame: int, fps: float) -> str:
     if fps <= 0:
-        return "00:00:00 f0"
+        return "00:00 f00"
     total = frame / fps
     m, s = divmod(total, 60)
     ff = frame % max(1, round(fps))
     return f"{int(m):02d}:{int(s):02d} f{ff:02d}"
 
 
+# ---------------------------------------------------------------- cache bar
 class CacheBar(QWidget):
     def __init__(self) -> None:
         super().__init__()
-        self.setFixedHeight(6)
+        self.setFixedHeight(4)
         self._count = 0
         self._warm: set[int] = set()
 
     def update_state(self, count: int, warm: set[int]) -> None:
-        self._count = count
-        self._warm = warm
+        self._count, self._warm = count, warm
         self.update()
 
     def paintEvent(self, _e) -> None:  # noqa: N802
@@ -47,14 +49,132 @@ class CacheBar(QWidget):
         if self._count <= 0:
             return
         w = self.width()
+        cw = max(1.0, w / self._count)
+        col = QColor(theme.ACCENT)
+        col.setAlpha(150)
         for n in self._warm:
-            x = int(n / self._count * w)
-            p.fillRect(QRect(x, 0, max(1, w // self._count + 1), self.height()),
-                       QColor(theme.ACCENT))
+            p.fillRect(QRectF(n / self._count * w, 0, cw + 1, self.height()), col)
 
 
+# ------------------------------------------------------------------- ruler
+class TimeRuler(QWidget):
+    seek = Signal(int)
+    setIn = Signal(int)
+    setOut = Signal(int)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setMinimumHeight(38)
+        self.setMouseTracking(True)
+        self._count = 0
+        self._fps = 30.0
+        self._frame = 0
+        self.in_point = 0
+        self.out_point = 0
+        self._drag = None   # 'head' | 'in' | 'out' | None
+
+    def configure(self, count: int, fps: float) -> None:
+        self._count = max(0, count)
+        self._fps = fps if fps > 0 else 30.0
+        self.update()
+
+    def set_frame(self, f: int) -> None:
+        self._frame = f
+        self.update()
+
+    def set_in_out(self, a: int, b: int) -> None:
+        self.in_point, self.out_point = a, b
+        self.update()
+
+    # -------------------------------------------------------- geometry
+    def _x(self, frame: float) -> float:
+        if self._count <= 1:
+            return 0.0
+        return frame / (self._count - 1) * (self.width() - 1)
+
+    def _frame_at(self, x: float) -> int:
+        if self._count <= 1:
+            return 0
+        return int(round(x / max(1, self.width() - 1) * (self._count - 1)))
+
+    # ------------------------------------------------------------ paint
+    def paintEvent(self, _e) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        h = self.height()
+        p.fillRect(self.rect(), QColor("#1c1c22"))
+
+        if self._count <= 1:
+            p.setPen(QColor(theme.TEXT_DIM))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "no clip")
+            return
+
+        # in / out shaded range
+        x0, x1 = self._x(self.in_point), self._x(self.out_point)
+        p.fillRect(QRectF(x0, 0, x1 - x0, h), QColor(76, 141, 255, 28))
+        for x, sig in ((x0, "in"), (x1, "out")):
+            p.setPen(QPen(QColor(theme.ACCENT), 1))
+            p.drawLine(QPointF(x, 0), QPointF(x, h))
+
+        # ticks: aim for ~1 label every 90 px
+        total_s = (self._count - 1) / self._fps
+        px_per_s = self.width() / max(total_s, 1e-6)
+        step = _nice_step(90 / max(px_per_s, 1e-6))
+        p.setPen(QColor(theme.TEXT_DIM))
+        t = 0.0
+        while t <= total_s + 1e-6:
+            x = self._x(t * self._fps)
+            p.drawLine(QPointF(x, h - 10), QPointF(x, h))
+            m, s = divmod(t, 60)
+            p.drawText(QRectF(x + 2, 2, 60, 12), Qt.AlignmentFlag.AlignLeft,
+                       f"{int(m):d}:{s:04.1f}" if step < 1 else f"{int(m):d}:{int(s):02d}")
+            t += step
+
+        # playhead
+        hx = self._x(self._frame)
+        p.setPen(QPen(QColor("#ff5555"), 1.5))
+        p.drawLine(QPointF(hx, 0), QPointF(hx, h))
+        tri = QPolygonF([QPointF(hx - 5, 0), QPointF(hx + 5, 0), QPointF(hx, 8)])
+        p.setBrush(QColor("#ff5555"))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawPolygon(tri)
+
+    # ------------------------------------------------------------ mouse
+    def mousePressEvent(self, e) -> None:  # noqa: N802
+        x = e.position().x()
+        if abs(x - self._x(self.in_point)) < 6:
+            self._drag = "in"
+        elif abs(x - self._x(self.out_point)) < 6:
+            self._drag = "out"
+        else:
+            self._drag = "head"
+            self.seek.emit(self._frame_at(x))
+
+    def mouseMoveEvent(self, e) -> None:  # noqa: N802
+        if not self._drag:
+            return
+        f = self._frame_at(e.position().x())
+        if self._drag == "head":
+            self.seek.emit(f)
+        elif self._drag == "in":
+            self.setIn.emit(min(f, self.out_point))
+        else:
+            self.setOut.emit(max(f, self.in_point))
+
+    def mouseReleaseEvent(self, _e) -> None:  # noqa: N802
+        self._drag = None
+
+
+def _nice_step(sec: float) -> float:
+    for s in (0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600):
+        if s >= sec:
+            return float(s)
+    return 900.0
+
+
+# ---------------------------------------------------------------- timeline
 class Timeline(QWidget):
-    frameChanged = Signal(int)          # user or playback moved the playhead
+    frameChanged = Signal(int)
     inOutChanged = Signal(int, int)
 
     def __init__(self) -> None:
@@ -65,19 +185,21 @@ class Timeline(QWidget):
         self.in_point = 0
         self.out_point = 0
         self._loop = False
+        self._play_t0 = 0.0
+        self._play_f0 = 0
 
         self._timer = QTimer(self)
+        self._timer.setInterval(8)
         self._timer.timeout.connect(self._tick)
 
         self._build()
         self.set_media(0, 30.0)
 
-    # --------------------------------------------------------------- building
     def _build(self) -> None:
-        self.slider = QSlider(Qt.Orientation.Horizontal)
-        self.slider.setRange(0, 0)
-        self.slider.valueChanged.connect(self._on_slider)
-
+        self.ruler = TimeRuler()
+        self.ruler.seek.connect(self.seek)
+        self.ruler.setIn.connect(self._set_in)
+        self.ruler.setOut.connect(self._set_out)
         self.cache_bar = CacheBar()
 
         self.btn_play = QPushButton("Play")
@@ -117,7 +239,7 @@ class Timeline(QWidget):
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 4, 8, 6)
-        lay.addWidget(self.slider)
+        lay.addWidget(self.ruler)
         lay.addWidget(self.cache_bar)
         lay.addLayout(row)
 
@@ -129,11 +251,9 @@ class Timeline(QWidget):
         self._frame = 0
         self.in_point = 0
         self.out_point = max(0, self._count - 1)
-        self.slider.blockSignals(True)
-        self.slider.setRange(0, self.out_point)
-        self.slider.setValue(0)
-        self.slider.blockSignals(False)
-        self._timer.setInterval(int(1000 / self._fps))
+        self.ruler.configure(self._count, self._fps)
+        self.ruler.set_in_out(self.in_point, self.out_point)
+        self.ruler.set_frame(0)
         self._update_label()
 
     @property
@@ -141,18 +261,20 @@ class Timeline(QWidget):
         return self._frame
 
     def seek(self, index: int) -> None:
-        index = max(0, min(index, max(0, self._count - 1)))
+        index = max(0, min(int(index), max(0, self._count - 1)))
         if index == self._frame:
             return
         self._frame = index
-        self.slider.blockSignals(True)
-        self.slider.setValue(index)
-        self.slider.blockSignals(False)
+        self.ruler.set_frame(index)
         self._update_label()
         self.frameChanged.emit(index)
 
     def set_playing(self, on: bool) -> None:
         if on and self._count > 1:
+            self._play_t0 = time.monotonic()
+            self._play_f0 = self._frame if self._frame < self.out_point else self.in_point
+            if self._frame >= self.out_point:
+                self.seek(self.in_point)
             self._timer.start()
         else:
             self._timer.stop()
@@ -170,25 +292,28 @@ class Timeline(QWidget):
 
     # ------------------------------------------------------------------ slots
     def _tick(self) -> None:
-        nxt = self._frame + 1
-        if nxt > self.out_point:
+        elapsed = time.monotonic() - self._play_t0
+        target = self._play_f0 + int(elapsed * self._fps)   # real-time; drops frames
+        if target > self.out_point:
             if self._loop:
-                nxt = self.in_point
+                self._play_t0 = time.monotonic()
+                self._play_f0 = self.in_point
+                target = self.in_point
             else:
+                self.seek(self.out_point)
                 self.set_playing(False)
                 return
-        self.seek(nxt)
-
-    def _on_slider(self, v: int) -> None:
-        self.seek(v)
+        self.seek(target)
 
     def _set_in(self, f: int) -> None:
-        self.in_point = min(f, self.out_point)
+        self.in_point = max(0, min(int(f), self.out_point))
+        self.ruler.set_in_out(self.in_point, self.out_point)
         self.inOutChanged.emit(self.in_point, self.out_point)
         self._update_label()
 
     def _set_out(self, f: int) -> None:
-        self.out_point = max(f, self.in_point)
+        self.out_point = max(self.in_point, min(int(f), max(0, self._count - 1)))
+        self.ruler.set_in_out(self.in_point, self.out_point)
         self.inOutChanged.emit(self.in_point, self.out_point)
         self._update_label()
 

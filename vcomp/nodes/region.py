@@ -92,6 +92,14 @@ class HUDRegion(VNode):
                              group="Edge", tooltip="Edge softness in canvas px."))
         self.add_param(Param("mask_expand", ParamType.FLOAT, 0.0, min=-64.0, max=64.0, step=0.5,
                              group="Edge", tooltip="Dilate (+) / erode (-) the mask, px."))
+        self.add_param(Param("crop_left", ParamType.FLOAT, 0.0, min=0.0, max=0.49, step=0.005,
+                             group="Edge", tooltip="Trim the mask's left edge (fraction)."))
+        self.add_param(Param("crop_right", ParamType.FLOAT, 0.0, min=0.0, max=0.49, step=0.005,
+                             group="Edge", tooltip="Trim the mask's right edge."))
+        self.add_param(Param("crop_top", ParamType.FLOAT, 0.0, min=0.0, max=0.49, step=0.005,
+                             group="Edge", tooltip="Trim the mask's top edge."))
+        self.add_param(Param("crop_bottom", ParamType.FLOAT, 0.0, min=0.0, max=0.49, step=0.005,
+                             group="Edge", tooltip="Trim the mask's bottom edge."))
 
         # Style
         self.add_param(Param("opacity", ParamType.FLOAT, 1.0, min=0.0, max=1.0, step=0.01,
@@ -182,13 +190,15 @@ class HUDRegion(VNode):
         if shape == 3:
             polymask = self._polygon_texture(ctx)
 
+        crop = (float(self.params["crop_left"].value), float(self.params["crop_top"].value),
+                float(self.params["crop_right"].value), float(self.params["crop_bottom"].value))
         region_fbo = ctx.acquire_fbo()
         comp.region(
             region_fbo, src, dest=dest, srcrect=srcrect, shape=shape, radii=radii,
             feather=feather, expand=expand, rotation=rot, opacity=1.0,
             outline_w=outline_w, outline_color=tuple(self.params["outline_color"].value),
             flip_h=self.params["flip_h"].value, flip_v=self.params["flip_v"].value,
-            polymask=polymask,
+            crop=crop, polymask=polymask,
         )
         acc = region_fbo
 

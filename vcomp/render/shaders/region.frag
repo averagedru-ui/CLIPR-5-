@@ -22,6 +22,7 @@ uniform int   u_flip_v;
 uniform float u_outline_w;   // canvas px
 uniform vec4  u_outline_color;
 uniform float u_opacity;
+uniform vec4  u_crop;        // inset each edge: left, top, right, bottom (0..0.49 of quad)
 
 in  vec2 v_uv;
 out vec4 f_color;
@@ -83,6 +84,13 @@ void main() {
         sdf -= expand;
         cov = 1.0 - smoothstep(-feather, feather, sdf);
     }
+    // independent edge crop (trim the mask to the real HUD element's borders)
+    vec2 clo = u_crop.xy;
+    vec2 chi = vec2(1.0) - u_crop.zw;
+    vec2 cc = smoothstep(clo - feather, clo + feather, d)
+            * (vec2(1.0) - smoothstep(chi - feather, chi + feather, d));
+    cov *= cc.x * cc.y;
+
     if (cov <= 0.0) discard;
 
     // sample source

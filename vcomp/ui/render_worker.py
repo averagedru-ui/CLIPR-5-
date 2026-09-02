@@ -35,6 +35,7 @@ class RenderWorker(QObject):
         self.preview_scale = 1.0
         self.last_render_ms = 0.0
         self.want_thumbs = False
+        self.lock_full_quality = False
         self._fast_streak = 0
 
     def set_graph(self, graph) -> None:
@@ -98,15 +99,18 @@ class RenderWorker(QObject):
         from vcomp.render.frame_pipeline import render_graph_frame
 
         thumbs: dict | None = {} if self.want_thumbs else None
+        scale = 1.0 if self.lock_full_quality else self.preview_scale
         t0 = time.perf_counter()
         out = render_graph_frame(self._comp, self._graph, frames, t,
-                                 render_scale=self.preview_scale, thumbs=thumbs)
+                                 render_scale=scale, thumbs=thumbs)
         self.last_render_ms = (time.perf_counter() - t0) * 1000.0
         self.frameComposited.emit(index, out)
         if thumbs:
             self.thumbsReady.emit(thumbs)
 
         # gentle preview-scale recovery when frames are consistently cheap
+        if self.lock_full_quality:
+            return
         if self.last_render_ms < 22 and self.preview_scale < 1.0:
             self._fast_streak += 1
             if self._fast_streak >= 10:

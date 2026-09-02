@@ -111,7 +111,7 @@ class Compositor:
                dest, srcrect, shape: int, radii=(0.0, 0.0, 0.0, 0.0),
                feather=0.0, expand=0.0, rotation=0.0, opacity=1.0,
                outline_w=0.0, outline_color=(1, 1, 1, 1),
-               flip_h=False, flip_v=False,
+               flip_h=False, flip_v=False, crop=(0.0, 0.0, 0.0, 0.0),
                polymask: moderngl.Texture | None = None) -> None:
         fbo.use()
         fbo.clear(0.0, 0.0, 0.0, 0.0)
@@ -137,6 +137,7 @@ class Compositor:
         p["u_outline_w"].value = float(outline_w)
         p["u_outline_color"].value = tuple(outline_color)
         p["u_opacity"].value = float(opacity)
+        p["u_crop"].value = tuple(crop)
         self.ctx.draw_fullscreen(p)
 
     def gaussian_blur(self, tex: moderngl.Texture, radius_px: float,

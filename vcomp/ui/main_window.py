@@ -197,6 +197,17 @@ class MainWindow(QMainWindow):
         self.act_thumbs = QAction("Node Preview Thumbnails", self, checkable=True)
         self.act_thumbs.toggled.connect(self._toggle_thumbs)
         self._view_menu.addAction(self.act_thumbs)
+        self.act_fullq = QAction("Full-Quality Preview", self, checkable=True)
+        self.act_fullq.setToolTip("Always render the preview at 1x (no auto-downscale).")
+        self.act_fullq.toggled.connect(self._toggle_full_quality)
+        self._view_menu.addAction(self.act_fullq)
+
+    def _toggle_full_quality(self, on: bool) -> None:
+        self.renderer.lock_full_quality = bool(on)
+        if on:
+            self.renderer.preview_scale = 1.0
+        self.lbl_preview.setText("Preview 1x" if on else "Preview auto")
+        self._render_current()
 
     def _toggle_thumbs(self, on: bool) -> None:
         self.renderer.want_thumbs = bool(on)
@@ -491,6 +502,8 @@ class MainWindow(QMainWindow):
         self._last_output = arr
         if index == self.timeline.frame:
             self.output_view.set_frame(arr)
+        if self.renderer.lock_full_quality:
+            return
         if self.renderer.last_render_ms > 130 and self.renderer.preview_scale > 0.25:
             self.renderer.preview_scale = max(0.25, self.renderer.preview_scale / 2)
         lbl = {1.0: "1x", 0.5: "½", 0.25: "¼"}.get(round(self.renderer.preview_scale, 2), "?")
