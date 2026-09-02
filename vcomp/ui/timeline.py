@@ -64,7 +64,8 @@ class TimeRuler(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setMinimumHeight(38)
+        self.setMinimumHeight(40)
+        self.setMaximumHeight(56)
         self.setMouseTracking(True)
         self._count = 0
         self._fps = 30.0
@@ -238,10 +239,12 @@ class Timeline(QWidget):
         row.addWidget(self.lbl)
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 4, 8, 6)
+        lay.setContentsMargins(8, 2, 8, 4)
+        lay.setSpacing(3)
         lay.addWidget(self.ruler)
         lay.addWidget(self.cache_bar)
         lay.addLayout(row)
+        self.setMaximumHeight(110)
 
     # ----------------------------------------------------------------- state
     def set_media(self, frame_count: int, fps: float) -> None:

@@ -8,11 +8,16 @@ import numpy as np
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QUndoStack
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QDockWidget,
     QFileDialog,
+    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -180,17 +185,55 @@ class MainWindow(QMainWindow):
         self.output_view.scaleDest.connect(self._on_scale_dest)
         self.output_view.rotateDest.connect(self._on_rotate_dest)
 
-        self.dock_source = self._dock("Source Viewport (16:9)", "source",
-                                      Qt.DockWidgetArea.LeftDockWidgetArea, self.source_view)
-        self.dock_output = self._dock("Output Viewport (9:16)", "output",
-                                      Qt.DockWidgetArea.RightDockWidgetArea, self.output_view)
-        self.dock_timeline = self._dock("Timeline", "timeline",
-                                        Qt.DockWidgetArea.BottomDockWidgetArea, self.timeline)
+        # LEFT: one viewport at a time (16:9 / 9:16 toggle) above the timeline
+        self._vp_stack = QStackedWidget()
+        self._vp_stack.addWidget(self.source_view)   # 0
+        self._vp_stack.addWidget(self.output_view)   # 1
+
+        self.btn_src = QPushButton("Source 16:9")
+        self.btn_out = QPushButton("Output 9:16")
+        grp = QButtonGroup(self)
+        grp.setExclusive(True)
+        for i, b in enumerate((self.btn_src, self.btn_out)):
+            b.setCheckable(True)
+            grp.addButton(b, i)
+            b.clicked.connect(lambda _=False, idx=i: self._show_viewport(idx))
+        self.btn_out.setChecked(True)
+
+        toggle_row = QHBoxLayout()
+        toggle_row.setContentsMargins(6, 4, 6, 0)
+        toggle_row.addWidget(self.btn_src)
+        toggle_row.addWidget(self.btn_out)
+        toggle_row.addStretch(1)
+
+        vp_panel = QWidget()
+        vlay = QVBoxLayout(vp_panel)
+        vlay.setContentsMargins(0, 0, 0, 0)
+        vlay.setSpacing(2)
+        vlay.addLayout(toggle_row)
+        vlay.addWidget(self._vp_stack, 1)
+        vlay.addWidget(self.timeline, 0)
+
+        self.dock_view = self._dock("Output 9:16", "view",
+                                    Qt.DockWidgetArea.LeftDockWidgetArea, vp_panel)
         self.dock_nodes = self._dock("Node Canvas", "nodes",
-                                     Qt.DockWidgetArea.BottomDockWidgetArea, self.canvas.widget)
+                                     Qt.DockWidgetArea.RightDockWidgetArea, self.canvas.widget)
         self.dock_props = self._dock("Properties", "props",
                                      Qt.DockWidgetArea.RightDockWidgetArea, self.props)
+        self.splitDockWidget(self.dock_view, self.dock_nodes, Qt.Orientation.Horizontal)
         self.splitDockWidget(self.dock_nodes, self.dock_props, Qt.Orientation.Horizontal)
+        self.resizeDocks([self.dock_view, self.dock_nodes, self.dock_props],
+                         [560, 760, 300], Qt.Orientation.Horizontal)
+        self._show_viewport(1)
+
+    def _show_viewport(self, idx: int) -> None:
+        self._vp_stack.setCurrentIndex(idx)
+        (self.btn_src if idx == 0 else self.btn_out).setChecked(True)
+        if hasattr(self, "dock_view"):
+            self.dock_view.setWindowTitle("Source 16:9" if idx == 0 else "Output 9:16")
+
+    def _toggle_viewport(self) -> None:
+        self._show_viewport(1 - self._vp_stack.currentIndex())
 
     def _build_view_menu_extras(self) -> None:
         self._view_menu.addSeparator()
@@ -261,6 +304,7 @@ class MainWindow(QMainWindow):
         sc("H", self._toggle_hide)
         sc("G", lambda: (self.output_view.toggle_guides(), self._render_current()))
         sc("F", self._frame_selection)
+        sc("\\", self._toggle_viewport)
         sc("1", lambda: self._set_preview_scale(0.25))
         sc("2", lambda: self._set_preview_scale(0.5))
         sc("3", lambda: self._set_preview_scale(1.0))
@@ -518,7 +562,11 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "CLIPR", f"Error:\n{msg}")
 
     # ---------------------------------------------------------------- layout
+    _LAYOUT_VERSION = 2
+
     def _restore_layout(self) -> None:
+        if self.settings.get("layout_version") != self._LAYOUT_VERSION:
+            return                       # dock set changed - start from defaults
         geo = self.settings.get("window_geometry")
         st = self.settings.get("window_layout")
         try:
@@ -533,6 +581,7 @@ class MainWindow(QMainWindow):
         self.timeline.set_playing(False)
         self.fetcher.stop()
         self.renderer.stop()
+        self.settings.set("layout_version", self._LAYOUT_VERSION)
         self.settings.set("window_geometry",
                           base64.b64encode(bytes(self.saveGeometry())).decode("ascii"))
         self.settings.set("window_layout",
