@@ -758,9 +758,7 @@ class MainWindow(QMainWindow):
 
     def _frame_selection(self) -> None:
         for v in (self.source_view, self.output_view):
-            v._zoom = 1.0
-            v._pan = v._pan.__class__(0, 0)
-            v.update()
+            v.reset_view()
 
     def _duplicate_selected(self) -> None:
         if not self._selected_id or self._selected_id not in self.graph.nodes:

@@ -37,7 +37,15 @@ class ImageViewport(QWidget):
         fmt = QImage.Format.Format_RGBA8888 if arr.shape[2] == 4 else QImage.Format.Format_RGB888
         stride = arr.shape[2] * w
         self._pixmap = QPixmap.fromImage(QImage(buf.data, w, h, stride, fmt).copy())
-        self._aspect = w / h
+        new_aspect = w / h
+        if abs(new_aspect - self._aspect) > 0.01:   # different media -> re-fit
+            self.reset_view()
+        self._aspect = new_aspect
+        self.update()
+
+    def reset_view(self) -> None:
+        self._zoom = 1.0
+        self._pan = QPointF(0.0, 0.0)
         self.update()
 
     def clear_content(self) -> None:
@@ -46,13 +54,12 @@ class ImageViewport(QWidget):
 
     # -------------------------------------------------------- coord mapping
     def _fit_rect(self) -> QRectF:
-        cw, ch = self.width(), self.height()
-        if cw / ch > self._aspect:
-            h = ch * self._zoom
-            w = h * self._aspect
-        else:
-            w = cw * self._zoom
-            h = w / self._aspect
+        cw, ch = max(1, self.width()), max(1, self.height())
+        # contain: largest w x h with the content aspect that fits the widget
+        fit_w = min(cw, ch * self._aspect)
+        fit_h = fit_w / self._aspect
+        w = fit_w * self._zoom
+        h = fit_h * self._zoom
         x = (cw - w) / 2 + self._pan.x()
         y = (ch - h) / 2 + self._pan.y()
         return QRectF(x, y, w, h)
@@ -96,10 +103,13 @@ class ImageViewport(QWidget):
     def wheelEvent(self, e) -> None:  # noqa: N802
         c = e.position()
         before = self.widget_to_norm(c)
-        self._zoom = max(0.2, min(self._zoom * (1.0015 ** e.angleDelta().y()), 12.0))
+        self._zoom = max(0.5, min(self._zoom * (1.0009 ** e.angleDelta().y()), 6.0))
         after = self.norm_to_widget(before.x(), before.y())
         self._pan += QPointF(c.x() - after.x(), c.y() - after.y())
         self.update()
+
+    def mouseDoubleClickEvent(self, _e) -> None:  # noqa: N802
+        self.reset_view()
 
     def keyPressEvent(self, e) -> None:  # noqa: N802
         if e.key() == Qt.Key.Key_Space:
