@@ -28,11 +28,27 @@ _IDENT = "vcomp"
 _PFX = "vc_"   # NodeGraphQt reserves names like 'color', 'border_color', 'width'
 
 _WIRE_COLOR = {
-    WireType.IMAGE: (90, 150, 240),
-    WireType.NUMBER: (170, 170, 170),
-    WireType.COLOR: (235, 205, 90),
-    WireType.RECT: (240, 150, 70),
-    WireType.AUDIO: (110, 210, 130),
+    WireType.IMAGE: (80, 170, 255),
+    WireType.NUMBER: (190, 190, 200),
+    WireType.COLOR: (255, 210, 70),
+    WireType.RECT: (255, 150, 55),
+    WireType.AUDIO: (90, 230, 140),
+}
+
+# Vibrant per-category node body colours (kept saturated on purpose).
+_CATEGORY_COLOR = {
+    "Input": (0, 178, 214),        # cyan
+    "Framing": (150, 82, 235),     # violet
+    "Background": (58, 110, 245),  # blue
+    "Modify": (214, 74, 178),      # magenta
+    "Composite": (124, 66, 232),   # deep purple
+    "Misc": (110, 96, 150),
+}
+_NODE_OVERRIDE = {
+    "Output": (36, 196, 118),      # green
+    "Clip Source": (0, 178, 214),
+    "Key": (214, 74, 90),          # red
+    "Guides": (214, 74, 90),
 }
 
 
@@ -79,7 +95,8 @@ def _build_ngqt_classes() -> dict[str, type]:
         outs = [(p.name, _WIRE_COLOR.get(p.wire, (150, 150, 150))) for p in probe.outputs]
         props = {n: _jsonable(pm.default) for n, pm in probe.params.items()}
         cname = _clsname(vtype.type_name)
-        ncolor = vtype.color
+        ncolor = _NODE_OVERRIDE.get(
+            vtype.type_name, _CATEGORY_COLOR.get(vtype.category, (110, 96, 150)))
         has_img_out = any(p.wire == WireType.IMAGE for p in probe.outputs)
 
         def _init(self, _ins=ins, _outs=outs, _props=props, _col=ncolor,
@@ -127,6 +144,12 @@ class NodeCanvas(QObject):
         self._thumbs_visible = False
 
         self.ng = NodeGraph()
+        try:
+            self.ng.set_background_color(13, 13, 18)
+            self.ng.set_grid_color(30, 30, 40)
+            self.ng.set_grid_mode(1)          # dots
+        except Exception:  # noqa: BLE001
+            pass
         self._classes = _build_ngqt_classes()
         for cls in self._classes.values():
             self.ng.register_node(cls)
