@@ -13,7 +13,7 @@ from typing import Callable
 
 import numpy as np
 from NodeGraphQt import BaseNode, NodeBaseWidget, NodeGraph
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QLabel
 
@@ -130,6 +130,39 @@ def _jsonable(v):
     return v
 
 
+class _CanvasPan(QObject):
+    """Left-drag on empty canvas pans the view (works over RDP where MMB /
+    scroll are unreliable). Drag that starts on a node/pipe is left alone."""
+
+    def __init__(self, viewer) -> None:
+        super().__init__(viewer)
+        self._v = viewer
+        self._on = False
+        self._last = QPointF()
+
+    def eventFilter(self, _obj, e) -> bool:  # noqa: N802
+        v = self._v
+        et = e.type()
+        if et == QEvent.Type.MouseButtonPress and e.button() == Qt.MouseButton.LeftButton:
+            if v.itemAt(e.position().toPoint()) is None:
+                self._on = True
+                self._last = e.position()
+                v.setCursor(Qt.CursorShape.ClosedHandCursor)
+                return True
+        elif et == QEvent.Type.MouseMove and self._on:
+            p0 = v.mapToScene(self._last.toPoint())
+            p1 = v.mapToScene(e.position().toPoint())
+            d = p0 - p1
+            v._set_viewer_pan(d.x(), d.y())
+            self._last = e.position()
+            return True
+        elif et == QEvent.Type.MouseButtonRelease and self._on:
+            self._on = False
+            v.unsetCursor()
+            return True
+        return False
+
+
 class NodeCanvas(QObject):
     nodeSelected = Signal(object)   # core node id or None
     status = Signal(str)
@@ -150,6 +183,12 @@ class NodeCanvas(QObject):
             self.ng.set_grid_mode(1)          # dots
         except Exception:  # noqa: BLE001
             pass
+        try:
+            _viewer = self.ng.viewer()
+            self._pan_filter = _CanvasPan(_viewer)
+            _viewer.viewport().installEventFilter(self._pan_filter)
+        except Exception:  # noqa: BLE001
+            log.exception("could not install canvas pan filter")
         self._classes = _build_ngqt_classes()
         for cls in self._classes.values():
             self.ng.register_node(cls)
