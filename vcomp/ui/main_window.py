@@ -9,13 +9,13 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QUndoStack
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QDockWidget,
     QFileDialog,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSplitter,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -40,11 +40,20 @@ _VIDEO_FILTER = "Video (*.mp4 *.mov *.mkv *.avi *.webm *.m4v);;All files (*)"
 _VIDEO_FILTER_EXT = (".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v")
 
 
-def _placeholder(text: str) -> QWidget:
-    w = QLabel(text)
-    w.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    w.setStyleSheet(f"color:{theme.TEXT_DIM}; font-size:13px;")
-    return w
+def _panel(title: str, widget: QWidget, extra: QWidget | None = None) -> QWidget:
+    """Wrap a widget in a titled panel (small uppercase header + content)."""
+    box = QWidget()
+    lay = QVBoxLayout(box)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(0)
+    head = QLabel(title)
+    head.setObjectName("panelTitle")
+    head.setContentsMargins(10, 6, 10, 4)
+    lay.addWidget(head)
+    lay.addWidget(widget, 1)
+    if extra is not None:
+        lay.addWidget(extra, 0)
+    return box
 
 
 class MainWindow(QMainWindow):
@@ -85,7 +94,7 @@ class MainWindow(QMainWindow):
         self.renderer.failed.connect(self._on_fail)
 
         self._build_menus()
-        self._build_docks()
+        self._build_central()
         self._build_view_menu_extras()
         self._build_statusbar()
         self._install_shortcuts()
@@ -160,10 +169,8 @@ class MainWindow(QMainWindow):
         menu.addAction(act)
         return act
 
-    # ------------------------------------------------------------------ docks
-    def _build_docks(self) -> None:
-        self.setDockNestingEnabled(True)
-
+    # ---------------------------------------------------------------- central
+    def _build_central(self) -> None:
         self.source_view = SourceViewport()
         self.output_view = OutputViewport()
         self.timeline = Timeline()
@@ -185,52 +192,84 @@ class MainWindow(QMainWindow):
         self.output_view.scaleDest.connect(self._on_scale_dest)
         self.output_view.rotateDest.connect(self._on_rotate_dest)
 
-        # LEFT: one viewport at a time (16:9 / 9:16 toggle) above the timeline
-        self._vp_stack = QStackedWidget()
-        self._vp_stack.addWidget(self.source_view)   # 0
-        self._vp_stack.addWidget(self.output_view)   # 1
+        # ---- top toolbar
+        bar = QWidget()
+        bar.setObjectName("toolbar")
+        bl = QHBoxLayout(bar)
+        bl.setContentsMargins(10, 7, 10, 7)
+        bl.setSpacing(8)
 
-        self.btn_src = QPushButton("Source 16:9")
-        self.btn_out = QPushButton("Output 9:16")
+        btn_open = QPushButton("  Open Clip  ")
+        btn_open.setObjectName("primary")
+        btn_open.clicked.connect(self._open_clip)
+        btn_tpl = QPushButton("Templates")
+        btn_tpl.clicked.connect(self._template_browser)
+        btn_exp = QPushButton("Export")
+        btn_exp.clicked.connect(self._export)
+        bl.addWidget(btn_open)
+        bl.addWidget(btn_tpl)
+        bl.addWidget(btn_exp)
+        bl.addStretch(1)
+
+        self.btn_src = QPushButton("16:9")
+        self.btn_src.setObjectName("segL")
+        self.btn_out = QPushButton("9:16")
+        self.btn_out.setObjectName("segR")
         grp = QButtonGroup(self)
         grp.setExclusive(True)
         for i, b in enumerate((self.btn_src, self.btn_out)):
             b.setCheckable(True)
             grp.addButton(b, i)
             b.clicked.connect(lambda _=False, idx=i: self._show_viewport(idx))
-        self.btn_out.setChecked(True)
+        bl.addWidget(self.btn_src)
+        bl.addWidget(self.btn_out)
+        bl.addStretch(1)
 
-        toggle_row = QHBoxLayout()
-        toggle_row.setContentsMargins(6, 4, 6, 0)
-        toggle_row.addWidget(self.btn_src)
-        toggle_row.addWidget(self.btn_out)
-        toggle_row.addStretch(1)
+        self.tb_guides = QPushButton("Guides")
+        self.tb_guides.setCheckable(True)
+        self.tb_guides.toggled.connect(lambda v: (self.output_view.toggle_guides(v),
+                                                  self._render_current()))
+        self.tb_fullq = QPushButton("Full Quality")
+        self.tb_fullq.setCheckable(True)
+        self.tb_fullq.toggled.connect(self._toggle_full_quality)
+        self.tb_thumbs = QPushButton("Node Previews")
+        self.tb_thumbs.setCheckable(True)
+        self.tb_thumbs.toggled.connect(self._toggle_thumbs)
+        bl.addWidget(self.tb_thumbs)
+        bl.addWidget(self.tb_guides)
+        bl.addWidget(self.tb_fullq)
 
-        vp_panel = QWidget()
-        vlay = QVBoxLayout(vp_panel)
-        vlay.setContentsMargins(0, 0, 0, 0)
-        vlay.setSpacing(2)
-        vlay.addLayout(toggle_row)
-        vlay.addWidget(self._vp_stack, 1)
-        vlay.addWidget(self.timeline, 0)
+        # ---- left: viewport + timeline
+        self._vp_stack = QStackedWidget()
+        self._vp_stack.addWidget(self.source_view)
+        self._vp_stack.addWidget(self.output_view)
+        left = _panel("Viewport", self._vp_stack, extra=self.timeline)
 
-        self.dock_view = self._dock("Output 9:16", "view",
-                                    Qt.DockWidgetArea.LeftDockWidgetArea, vp_panel)
-        self.dock_nodes = self._dock("Node Canvas", "nodes",
-                                     Qt.DockWidgetArea.RightDockWidgetArea, self.canvas.widget)
-        self.dock_props = self._dock("Properties", "props",
-                                     Qt.DockWidgetArea.RightDockWidgetArea, self.props)
-        self.splitDockWidget(self.dock_view, self.dock_nodes, Qt.Orientation.Horizontal)
-        self.splitDockWidget(self.dock_nodes, self.dock_props, Qt.Orientation.Horizontal)
-        self.resizeDocks([self.dock_view, self.dock_nodes, self.dock_props],
-                         [560, 760, 300], Qt.Orientation.Horizontal)
-        self._show_viewport(1)
+        # ---- right: node canvas + properties
+        right = self._right_split = QSplitter(Qt.Orientation.Horizontal)
+        right.addWidget(_panel("Node Graph", self.canvas.widget))
+        right.addWidget(_panel("Properties", self.props))
+        right.setSizes([720, 320])
+        right.setStretchFactor(0, 1)
+
+        self._main_split = QSplitter(Qt.Orientation.Horizontal)
+        self._main_split.addWidget(left)
+        self._main_split.addWidget(right)
+        self._main_split.setSizes([620, 1000])
+        self._main_split.setStretchFactor(1, 1)
+
+        central = QWidget()
+        cl = QVBoxLayout(central)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(0)
+        cl.addWidget(bar)
+        cl.addWidget(self._main_split, 1)
+        self.setCentralWidget(central)
+        self._show_viewport(0)
 
     def _show_viewport(self, idx: int) -> None:
         self._vp_stack.setCurrentIndex(idx)
         (self.btn_src if idx == 0 else self.btn_out).setChecked(True)
-        if hasattr(self, "dock_view"):
-            self.dock_view.setWindowTitle("Source 16:9" if idx == 0 else "Output 9:16")
 
     def _toggle_viewport(self) -> None:
         self._show_viewport(1 - self._vp_stack.currentIndex())
@@ -238,11 +277,10 @@ class MainWindow(QMainWindow):
     def _build_view_menu_extras(self) -> None:
         self._view_menu.addSeparator()
         self.act_thumbs = QAction("Node Preview Thumbnails", self, checkable=True)
-        self.act_thumbs.toggled.connect(self._toggle_thumbs)
+        self.act_thumbs.toggled.connect(lambda v: self.tb_thumbs.setChecked(v))
         self._view_menu.addAction(self.act_thumbs)
         self.act_fullq = QAction("Full-Quality Preview", self, checkable=True)
-        self.act_fullq.setToolTip("Always render the preview at 1x (no auto-downscale).")
-        self.act_fullq.toggled.connect(self._toggle_full_quality)
+        self.act_fullq.toggled.connect(lambda v: self.tb_fullq.setChecked(v))
         self._view_menu.addAction(self.act_fullq)
 
     def _toggle_full_quality(self, on: bool) -> None:
@@ -261,13 +299,6 @@ class MainWindow(QMainWindow):
     def _on_thumbs(self, thumbs: dict) -> None:
         self.canvas.set_thumbs(thumbs)
 
-    def _dock(self, title, obj, area, widget) -> QDockWidget:
-        d = QDockWidget(title, self)
-        d.setObjectName(f"dock_{obj}")
-        d.setWidget(widget)
-        self.addDockWidget(area, d)
-        self._view_menu.addAction(d.toggleViewAction())
-        return d
 
     # -------------------------------------------------------------- statusbar
     def _build_statusbar(self) -> None:
@@ -520,6 +551,7 @@ class MainWindow(QMainWindow):
         self.lbl_source.setText(f"{dw}x{dh}{rot}  {info.fps:.3f}fps{vfr}  {info.duration:.1f}s")
         self.set_status(f"loaded {info.path}")
         self._refresh_overlays()
+        self._show_viewport(1)   # show the composited 9:16 result
         self._request_frame(0)
 
     def _request_frame(self, index: int) -> None:
@@ -562,20 +594,22 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "CLIPR", f"Error:\n{msg}")
 
     # ---------------------------------------------------------------- layout
-    _LAYOUT_VERSION = 2
+    _LAYOUT_VERSION = 3
 
     def _restore_layout(self) -> None:
         if self.settings.get("layout_version") != self._LAYOUT_VERSION:
-            return                       # dock set changed - start from defaults
+            return
         geo = self.settings.get("window_geometry")
-        st = self.settings.get("window_layout")
         try:
             if geo:
                 self.restoreGeometry(base64.b64decode(geo))
-            if st:
-                self.restoreState(base64.b64decode(st))
+            for split, key in ((self._main_split, "split_main"),
+                               (self._right_split, "split_right")):
+                data = self.settings.get(key)
+                if data:
+                    split.restoreState(base64.b64decode(data))
         except (ValueError, TypeError):
-            log.warning("Could not restore window layout")
+            log.warning("Could not restore layout")
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.timeline.set_playing(False)
@@ -584,8 +618,10 @@ class MainWindow(QMainWindow):
         self.settings.set("layout_version", self._LAYOUT_VERSION)
         self.settings.set("window_geometry",
                           base64.b64encode(bytes(self.saveGeometry())).decode("ascii"))
-        self.settings.set("window_layout",
-                          base64.b64encode(bytes(self.saveState())).decode("ascii"))
+        self.settings.set("split_main",
+                          base64.b64encode(bytes(self._main_split.saveState())).decode("ascii"))
+        self.settings.set("split_right",
+                          base64.b64encode(bytes(self._right_split.saveState())).decode("ascii"))
         self.settings.save()
         super().closeEvent(event)
 

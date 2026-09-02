@@ -55,6 +55,7 @@ def test_main_window_constructs(tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
     win = MainWindow(Settings())
     assert win.windowTitle() == "CLIPR"
-    assert win.dock_view is not None and win.dock_nodes is not None
+    assert win.centralWidget() is not None
     assert win.source_view is not None and win.output_view is not None
+    assert win._vp_stack.count() == 2
     win.close()
