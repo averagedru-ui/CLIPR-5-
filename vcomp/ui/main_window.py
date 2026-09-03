@@ -424,6 +424,7 @@ class MainWindow(QMainWindow):
         self.undo_stack.beginMacro("Create HUD Region")
         self.undo_stack.push(AddNodeCmd(self.graph, "HUD Region", rid))
         self.graph.set_param(rid, "source_rect", coords.clamp_rect((x, y, w, h)))
+        self.graph.set_param(rid, "reference_height", int(self._src_dims()[1]))
         n_regions = len(self._hud_nodes())
         self.graph.set_param(rid, "dest_x", 0.5)
         self.graph.set_param(rid, "dest_y", 0.08 + 0.06 * (n_regions - 1))

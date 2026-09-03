@@ -53,7 +53,8 @@ def test_mask_edge_crop(compositor):
     g.set_param(out.id, "background_clear_color", (0, 0, 0, 1))
     clip.set_media_info(640, 360, 30.0, 2.0)
     for k, v in dict(shape="rect", source_rect=(0.0, 0.0, 1.0, 1.0), dest_x=0.5,
-                     dest_y=0.5, dest_anchor="center", dest_scale=2.0, feather=0.0).items():
+                     dest_y=0.5, dest_anchor="center", dest_scale=2.0, feather=0.0,
+                     reference_height=360).items():
         g.set_param(reg.id, k, v)
 
     src = np.full((360, 640, 3), (0, 200, 0), np.uint8)

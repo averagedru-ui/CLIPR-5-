@@ -164,6 +164,10 @@ def apply_template(graph: Graph, tpl: Template, clip_resolution: tuple[int, int]
         )
         new_rect = coords.remap_region(rect, ref_res, clip_resolution, placement)
         node.params["source_rect"].set(new_rect)
+        # Pin the region's authoring reference height so its on-canvas placement
+        # is stable regardless of the clip resolution it's applied to.
+        if "reference_height" in node.params:
+            node.params["reference_height"].set(int(ref_res[1]))
 
     # restore Clip Source identity
     new_clips = graph.clip_source_nodes()

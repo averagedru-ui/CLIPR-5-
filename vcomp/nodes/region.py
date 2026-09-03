@@ -138,8 +138,15 @@ class HUDRegion(VNode):
                       scale: float | None = None) -> tuple[float, float, float, float]:
         """Destination quad (x0,y0,x1,y1 canvas [0,1]). Pure - no GL context."""
         _, _, sw, sh = self.params["source_rect"].value
-        reg_px_w = max(1.0, sw * (src_w or canvas_w))
-        reg_px_h = max(1.0, sh * (src_h or canvas_h))
+        src_w = src_w or canvas_w
+        src_h = src_h or canvas_h
+        # Normalize the clip's pixel resolution to the region's authoring
+        # reference height so a template authored on a 1440p clip places at the
+        # same on-canvas size when applied to a 1080p clip (and vice versa).
+        ref_h = float(self.params["reference_height"].value) if "reference_height" in self.params else 1080.0
+        res_norm = ref_h / max(1.0, float(src_h))
+        reg_px_w = max(1.0, sw * src_w * res_norm)
+        reg_px_h = max(1.0, sh * src_h * res_norm)
 
         scale = float(self.params["dest_scale"].value if scale is None else scale)
         linked = self.params["link_scale"].value
