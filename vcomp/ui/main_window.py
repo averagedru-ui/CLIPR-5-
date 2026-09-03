@@ -138,6 +138,11 @@ class MainWindow(QMainWindow):
         e.addAction(redo)
 
         node_menu = mb.addMenu("&Node")
+        self._add(node_menu, "Draw Rectangle Mask", "M",
+                  lambda: self._arm_mask(self.source_view.arm_create))
+        self._add(node_menu, "Draw Polygon Mask", "P",
+                  lambda: self._arm_mask(self.source_view.arm_polygon))
+        node_menu.addSeparator()
         for cat, types in by_category().items():
             sub = node_menu.addMenu(cat)
             for vt in types:
@@ -189,6 +194,8 @@ class MainWindow(QMainWindow):
         self.props = PropertiesPanel(self.graph, self.undo_stack)
 
         self.source_view.createRegion.connect(self._on_create_region)
+        self.source_view.createPolygon.connect(self._on_create_polygon)
+        self.source_view.editPolygon.connect(self._on_edit_polygon)
         self.source_view.editRect.connect(self._on_edit_rect)
         self.source_view.selectRegion.connect(self._on_region_selected)
         self.source_view.pickColor.connect(self._on_pick_color)
@@ -335,7 +342,6 @@ class MainWindow(QMainWindow):
         sc(".", lambda: self.timeline.seek(self.timeline.frame + 1))
         sc("Home", lambda: self.timeline.seek(self.timeline.in_point))
         sc("End", lambda: self.timeline.seek(self.timeline.out_point))
-        sc("M", self.source_view.arm_create)
         sc("Alt+I", self.source_view.arm_eyedropper)
         sc("S", self._toggle_solo)
         sc("H", self._toggle_hide)
@@ -387,13 +393,25 @@ class MainWindow(QMainWindow):
     def _hud_nodes(self):
         return [n for n in self.graph.nodes.values() if n.type_name == "HUD Region"]
 
+    def _arm_mask(self, arm_fn) -> None:
+        """Make sure the 16:9 source view is up, then arm a mask tool on it."""
+        if self._info is None:
+            self.set_status("load a clip first")
+            return
+        self._show_viewport(0)
+        arm_fn()
+        self.source_view.setFocus()
+
     def _refresh_overlays(self) -> None:
         regs = []
         for n in self._hud_nodes():
+            shape = n.params["shape"].value if "shape" in n.params else "rect"
             regs.append({
                 "id": n.id,
                 "label": n.params["label"].value or n.title,
                 "rect": tuple(n.params["source_rect"].value),
+                "shape": shape,
+                "points": n.polygon_points_source() if shape == "polygon" else [],
                 "selected": n.id == self._selected_id,
             })
         self.source_view.set_regions(regs)
@@ -458,6 +476,66 @@ class MainWindow(QMainWindow):
 
         if node_id in self.graph.nodes:
             self.undo_stack.push(SetParamCmd(self.graph, node_id, "source_rect", tuple(rect)))
+
+    _POLY_MIN = 0.02   # smallest polygon bounding box (source fraction)
+
+    def _poly_bbox_and_local(self, pts):
+        """Source-space points -> (clamped bbox rect, quad-local points str)."""
+        from vcomp.core import coords
+        from vcomp.nodes.region import bbox_of, format_points
+
+        bx, by, bw, bh = bbox_of(pts)
+        bw = max(self._POLY_MIN, bw)
+        bh = max(self._POLY_MIN, bh)
+        rect = coords.clamp_rect((bx, by, bw, bh))
+        bx, by, bw, bh = rect
+        local = [((px - bx) / bw, (py - by) / bh) for px, py in pts]
+        return rect, format_points(local)
+
+    def _on_create_polygon(self, pts) -> None:
+        from vcomp.ui.commands import AddNodeCmd, SetParamCmd
+
+        if len(pts) < 3:
+            return
+        clip = next(iter(self.graph.clip_source_nodes()), None)
+        stack = next((n for n in self.graph.nodes.values() if n.type_name == "Stack"), None)
+        rect, local = self._poly_bbox_and_local(pts)
+
+        rid = self.graph.new_id("HUD Region")
+        n_regions = len(self._hud_nodes())
+        self.undo_stack.beginMacro("Create polygon mask")
+        self.undo_stack.push(AddNodeCmd(self.graph, "HUD Region", rid))
+        for name, val in (("shape", "polygon"), ("source_rect", rect),
+                          ("polygon_points", local),
+                          ("reference_height", int(self._src_dims()[1])),
+                          ("dest_x", 0.5), ("dest_y", 0.08 + 0.06 * n_regions),
+                          ("label", f"Region {n_regions + 1}")):
+            self.undo_stack.push(SetParamCmd(self.graph, rid, name, val))
+        if clip:
+            self._safe_connect(clip.id, "image", rid, "image")
+        if stack:
+            self._safe_connect(rid, "image", stack.id, "layers")
+        self.undo_stack.endMacro()
+
+        self._selected_id = rid
+        self.canvas.sync_from_core()
+        self.canvas.focus_core_node(rid)
+        self.props.show_node(rid)
+        self._refresh_overlays()
+        self._render_current()
+        self.set_status("created polygon mask")
+
+    def _on_edit_polygon(self, node_id, pts, final) -> None:
+        from vcomp.ui.commands import SetParamsCmd
+
+        if node_id not in self.graph.nodes or len(pts) < 3:
+            return
+        rect, local = self._poly_bbox_and_local(pts)
+        self.undo_stack.push(SetParamsCmd(
+            self.graph, node_id,
+            {"source_rect": rect, "polygon_points": local, "shape": "polygon"},
+            text="Edit polygon mask"))
+        self._refresh_overlays()
 
     def _on_pick_color(self, rgb) -> None:
         from vcomp.ui.commands import SetParamCmd

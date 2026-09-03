@@ -38,6 +38,39 @@ class SetParamCmd(QUndoCommand):
         self._g.set_param(self._nid, self._name, self._old)
 
 
+class SetParamsCmd(QUndoCommand):
+    """Set several params on one node as a single, coalescing undo entry.
+
+    Used where one gesture changes multiple params together (e.g. dragging a
+    polygon vertex updates both ``polygon_points`` and the ``source_rect``
+    bounding box)."""
+
+    def __init__(self, graph: Graph, node_id: str, values: dict[str, Any], *, text: str = ""):
+        super().__init__(text or "Edit")
+        self._g = graph
+        self._nid = node_id
+        self._new = dict(values)
+        self._old = {k: graph.nodes[node_id].params[k].value for k in values}
+        self._merge_id = hash((node_id, tuple(sorted(values)))) & 0x7FFFFFFF
+
+    def id(self) -> int:
+        return self._merge_id
+
+    def mergeWith(self, other: "QUndoCommand") -> bool:
+        if isinstance(other, SetParamsCmd) and other._merge_id == self._merge_id:
+            self._new = other._new
+            return True
+        return False
+
+    def redo(self) -> None:
+        for k, v in self._new.items():
+            self._g.set_param(self._nid, k, v)
+
+    def undo(self) -> None:
+        for k, v in self._old.items():
+            self._g.set_param(self._nid, k, v)
+
+
 class SetEnabledCmd(QUndoCommand):
     def __init__(self, graph: Graph, node_id: str, on: bool):
         super().__init__("Enable node" if on else "Disable node")

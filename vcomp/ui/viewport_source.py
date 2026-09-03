@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QApplication, QPushButton
 
 from vcomp.ui import theme
@@ -29,7 +29,9 @@ _HS = 6.0   # handle half-size px
 
 class SourceViewport(ImageViewport):
     createRegion = Signal(float, float, float, float)     # x,y,w,h norm
+    createPolygon = Signal(list)                          # [(x,y), ...] source-norm
     editRect = Signal(str, tuple, bool)                   # node_id, (x,y,w,h), final
+    editPolygon = Signal(str, list, bool)                 # node_id, [(x,y),...], final
     selectRegion = Signal(str)
     pickColor = Signal(tuple)
     openClip = Signal()                                   # "Open Clip" button
@@ -37,9 +39,11 @@ class SourceViewport(ImageViewport):
 
     def __init__(self) -> None:
         super().__init__(16 / 9)
-        self._regions: list[dict] = []          # {id,label,rect,selected}
+        self._regions: list[dict] = []          # {id,label,rect,selected,shape,points}
         self._frame: np.ndarray | None = None
         self._create_armed = False
+        self._poly_pts: list[QPointF] | None = None   # in-progress polygon (norm)
+        self._cursor_n = QPointF(0.0, 0.0)
         self._eyedrop = False
         self._drag = None                       # dict with mode/anchor/orig
         self._rubber: QRectF | None = None
@@ -95,8 +99,32 @@ class SourceViewport(ImageViewport):
         self.update()
 
     def arm_create(self) -> None:
+        self._cancel_polygon()
         self._create_armed = True
         self.setCursor(Qt.CursorShape.CrossCursor)
+
+    def arm_polygon(self) -> None:
+        """Start a click-to-place polygon mask. Click to add points, click the
+        first point (or Enter / double-click) to close, Esc to cancel."""
+        self._create_armed = False
+        self._poly_pts = []
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setFocus()
+        self.update()
+
+    def _cancel_polygon(self) -> None:
+        if self._poly_pts is not None:
+            self._poly_pts = None
+            self.unsetCursor()
+            self.update()
+
+    def _finish_polygon(self) -> None:
+        pts = self._poly_pts or []
+        self._poly_pts = None
+        self.unsetCursor()
+        if len(pts) >= 3:
+            self.createPolygon.emit([(p.x(), p.y()) for p in pts])
+        self.update()
 
     def arm_eyedropper(self) -> None:
         self._eyedrop = True
@@ -105,23 +133,40 @@ class SourceViewport(ImageViewport):
     # --------------------------------------------------------------- paint
     def paint_overlay(self, p: QPainter) -> None:
         for reg in self._regions:
+            sel = reg["selected"]
+            pts = reg.get("points") or []
+            is_poly = reg.get("shape") == "polygon" and len(pts) >= 3
             x, y, w, h = reg["rect"]
             tl = self.norm_to_widget(x, y)
             br = self.norm_to_widget(x + w, y + h)
             rect = QRectF(tl, br)
-            sel = reg["selected"]
+
             p.setPen(QPen(QColor(theme.ACCENT if sel else "#889"), 2 if sel else 1,
                           Qt.PenStyle.SolidLine if sel else Qt.PenStyle.DashLine))
             p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawRect(rect)
+            if is_poly:
+                poly = QPolygonF([self.norm_to_widget(px, py) for px, py in pts])
+                p.drawPolygon(poly)
+            else:
+                p.drawRect(rect)
+
             p.setPen(QColor(theme.TEXT if sel else theme.TEXT_DIM))
             p.drawText(rect.adjusted(3, 2, -3, -3),
                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop, reg["label"])
+
             if sel:
-                p.setBrush(QColor(theme.ACCENT))
                 p.setPen(Qt.PenStyle.NoPen)
-                for hx, hy in self._handle_points(rect):
-                    p.drawRect(QRectF(hx - _HS, hy - _HS, 2 * _HS, 2 * _HS))
+                p.setBrush(QColor(theme.ACCENT))
+                if is_poly:
+                    for px, py in pts:
+                        c = self.norm_to_widget(px, py)
+                        p.drawEllipse(c, _HS, _HS)
+                else:
+                    for hx, hy in self._handle_points(rect):
+                        p.drawRect(QRectF(hx - _HS, hy - _HS, 2 * _HS, 2 * _HS))
+
+        if self._poly_pts is not None:
+            self._paint_poly_draft(p)
 
         if self._rubber is not None:
             p.setPen(QPen(QColor(theme.ACCENT), 1, Qt.PenStyle.DashLine))
@@ -136,6 +181,23 @@ class SourceViewport(ImageViewport):
         for y in gy:
             wy = self.norm_to_widget(0, y).y()
             p.drawLine(QPointF(0, wy), QPointF(self.width(), wy))
+
+    def _paint_poly_draft(self, p: QPainter) -> None:
+        pw = [self.norm_to_widget(pt.x(), pt.y()) for pt in self._poly_pts]
+        cur = self.norm_to_widget(self._cursor_n.x(), self._cursor_n.y())
+        p.setPen(QPen(QColor(theme.ACCENT), 2))
+        p.setBrush(QColor(76, 141, 255, 40))
+        if len(pw) >= 2:
+            p.drawPolyline(QPolygonF(pw))
+        if pw:
+            p.setPen(QPen(QColor(theme.ACCENT), 1, Qt.PenStyle.DashLine))
+            p.drawLine(pw[-1], cur)
+            if len(pw) >= 2:
+                p.drawLine(cur, pw[0])          # preview closing edge
+        p.setPen(Qt.PenStyle.NoPen)
+        for i, c in enumerate(pw):
+            p.setBrush(QColor("#fff") if i == 0 else QColor(theme.ACCENT))
+            p.drawEllipse(c, _HS, _HS)
 
     def _handle_points(self, rect: QRectF):
         cx, cy = rect.center().x(), rect.center().y()
@@ -154,6 +216,23 @@ class SourceViewport(ImageViewport):
     def _selected(self) -> dict | None:
         return next((r for r in self._regions if r["selected"]), None)
 
+    def _hit_poly_vertex(self, pos: QPointF):
+        """(region, vertex_index) if ``pos`` is on a vertex of the selected
+        polygon region, else None."""
+        reg = self._selected()
+        if not reg or reg.get("shape") != "polygon":
+            return None
+        for i, (px, py) in enumerate(reg.get("points") or []):
+            if _dist(pos, self.norm_to_widget(px, py)) <= _HS + 3:
+                return (reg, i)
+        return None
+
+    def mouseDoubleClickEvent(self, e):  # noqa: N802
+        if self._poly_pts is not None:
+            self._finish_polygon()
+            return
+        super().mouseDoubleClickEvent(e)
+
     def _hit_handle(self, pos: QPointF) -> str | None:
         reg = self._selected()
         if not reg:
@@ -168,9 +247,43 @@ class SourceViewport(ImageViewport):
         return None
 
     def mousePressEvent(self, e):  # noqa: N802
+        pos = e.position()
+
+        # right-click removes a polygon vertex
+        if (e.button() == Qt.MouseButton.RightButton and self._poly_pts is None):
+            hit = self._hit_poly_vertex(pos)
+            if hit is not None:
+                reg, idx = hit
+                pts = list(reg["points"])
+                if len(pts) > 3:
+                    del pts[idx]
+                    self.editPolygon.emit(reg["id"], pts, True)
+                return
+            return super().mousePressEvent(e)
+
         if e.button() != Qt.MouseButton.LeftButton or self._space:
             return super().mousePressEvent(e)
-        pos = e.position()
+
+        # placing points for a new polygon
+        if self._poly_pts is not None:
+            n = self.widget_to_norm(pos)
+            if self._poly_pts:
+                first = self.norm_to_widget(self._poly_pts[0].x(), self._poly_pts[0].y())
+                if len(self._poly_pts) >= 3 and _dist(pos, first) < 12:
+                    self._finish_polygon()
+                    return
+            self._poly_pts.append(QPointF(min(1.0, max(0.0, n.x())),
+                                          min(1.0, max(0.0, n.y()))))
+            self.update()
+            return
+
+        # dragging a vertex of the selected polygon region
+        hit = self._hit_poly_vertex(pos)
+        if hit is not None:
+            reg, idx = hit
+            self._drag = {"mode": "poly_vert", "id": reg["id"],
+                          "pts": list(reg["points"]), "idx": idx}
+            return
 
         if self._eyedrop and self._frame is not None:
             n = self.widget_to_norm(pos)
@@ -207,17 +320,48 @@ class SourceViewport(ImageViewport):
         if hit:
             if not hit["selected"]:
                 self.selectRegion.emit(hit["id"])
-            self._drag = {"mode": "move", "id": hit["id"], "orig": hit["rect"],
-                          "start": n}
+            if hit.get("shape") == "polygon" and hit.get("points"):
+                self._drag = {"mode": "poly_move", "id": hit["id"],
+                              "pts": list(hit["points"]), "start": n}
+            else:
+                self._drag = {"mode": "move", "id": hit["id"], "orig": hit["rect"],
+                              "start": n}
         else:
             self.selectRegion.emit("")
 
     def mouseMoveEvent(self, e):  # noqa: N802
+        pos = e.position()
+
+        if self._poly_pts is not None:
+            self._cursor_n = self.widget_to_norm(pos)
+            self.update()
+            return
+
         if self._panning or self._drag is None:
             return super().mouseMoveEvent(e)
-        pos = e.position()
         alt = bool(QApplication.keyboardModifiers() & Qt.KeyboardModifier.AltModifier)
         mode = self._drag["mode"]
+
+        if mode == "poly_vert":
+            n = self.widget_to_norm(pos)
+            pts = list(self._drag["pts"])
+            pts[self._drag["idx"]] = (min(1.0, max(0.0, n.x())),
+                                      min(1.0, max(0.0, n.y())))
+            self._drag["current"] = pts
+            self.editPolygon.emit(self._drag["id"], pts, False)
+            self.update()
+            return
+
+        if mode == "poly_move":
+            n = self.widget_to_norm(pos)
+            dx = n.x() - self._drag["start"].x()
+            dy = n.y() - self._drag["start"].y()
+            pts = [(min(1.0, max(0.0, x + dx)), min(1.0, max(0.0, y + dy)))
+                   for x, y in self._drag["pts"]]
+            self._drag["current"] = pts
+            self.editPolygon.emit(self._drag["id"], pts, False)
+            self.update()
+            return
 
         if mode == "create":
             self._rubber = QRectF(self.norm_to_widget(*_xy(self._drag["start"])), pos).normalized()
@@ -289,6 +433,12 @@ class SourceViewport(ImageViewport):
             self.update()
             return
 
+        if drag["mode"] in ("poly_vert", "poly_move"):
+            pts = drag.get("current", drag["pts"])
+            self.editPolygon.emit(drag["id"], pts, True)
+            self.update()
+            return
+
         rect = drag.get("current", drag["orig"])
         self.editRect.emit(drag["id"], rect, True)
         self.update()
@@ -298,6 +448,20 @@ class SourceViewport(ImageViewport):
         if e.key() == Qt.Key.Key_M:
             self.arm_create()
             return
+        if e.key() == Qt.Key.Key_P:
+            self.arm_polygon()
+            return
+        if self._poly_pts is not None:
+            if e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self._finish_polygon()
+                return
+            if e.key() == Qt.Key.Key_Escape:
+                self._cancel_polygon()
+                return
+            if e.key() == Qt.Key.Key_Backspace and self._poly_pts:
+                self._poly_pts.pop()
+                self.update()
+                return
         reg = self._selected()
         if reg and e.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
             step = 0.01 if e.modifiers() & Qt.KeyboardModifier.ShiftModifier else 0.001
@@ -318,3 +482,7 @@ class SourceViewport(ImageViewport):
 
 def _xy(pt):
     return (pt.x(), pt.y())
+
+
+def _dist(a: QPointF, b: QPointF) -> float:
+    return ((a.x() - b.x()) ** 2 + (a.y() - b.y()) ** 2) ** 0.5

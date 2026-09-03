@@ -21,6 +21,31 @@ _SHAPES = ("rect", "rounded_rect", "ellipse", "polygon")
 _SHAPE_ID = {name: i for i, name in enumerate(_SHAPES)}
 
 
+def parse_point_string(raw: str) -> list[tuple[float, float]]:
+    """``"x,y;x,y;..."`` -> ``[(x, y), ...]`` (silently drops malformed pairs)."""
+    pts: list[tuple[float, float]] = []
+    for pair in str(raw).replace(" ", "").split(";"):
+        if "," in pair:
+            a, b = pair.split(",")[:2]
+            try:
+                pts.append((float(a), float(b)))
+            except ValueError:
+                pass
+    return pts
+
+
+def format_points(pts: list[tuple[float, float]]) -> str:
+    return ";".join(f"{x:.5f},{y:.5f}" for x, y in pts)
+
+
+def bbox_of(pts: list[tuple[float, float]]) -> tuple[float, float, float, float]:
+    """Axis-aligned bounds ``(x, y, w, h)`` of a point list."""
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    x0, y0 = min(xs), min(ys)
+    return (x0, y0, max(xs) - x0, max(ys) - y0)
+
+
 def _bake_polygon_mask(points: list[tuple[float, float]], res: int = 256) -> np.ndarray:
     """Rasterize a polygon (points in 0..1 quad space) to an RGB mask, 2x SSAA."""
     if len(points) < 3:
@@ -256,16 +281,16 @@ class HUDRegion(VNode):
 
     # --------------------------------------------------------------- polygon
     def _parse_points(self) -> list[tuple[float, float]]:
-        raw = str(self.params["polygon_points"].value).strip()
-        pts = []
-        for pair in raw.replace(" ", "").split(";"):
-            if "," in pair:
-                a, b = pair.split(",")[:2]
-                try:
-                    pts.append((float(a), float(b)))
-                except ValueError:
-                    pass
-        return pts
+        return parse_point_string(self.params["polygon_points"].value)
+
+    def polygon_points_source(self) -> list[tuple[float, float]]:
+        """Polygon vertices in source-frame [0,1] space (quad-local points mapped
+        through ``source_rect``). Empty if not a usable polygon."""
+        pts = self._parse_points()
+        if len(pts) < 3:
+            return []
+        x, y, w, h = self.params["source_rect"].value
+        return [(x + px * w, y + py * h) for px, py in pts]
 
     def _polygon_texture(self, ctx):
         pts = self._parse_points()
