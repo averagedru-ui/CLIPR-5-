@@ -222,6 +222,24 @@ class MainWindow(QMainWindow):
         bl.addWidget(btn_open)
         bl.addWidget(btn_tpl)
         bl.addWidget(btn_exp)
+
+        sep = QLabel("|")
+        sep.setStyleSheet(f"color:{theme.BORDER_HI};")
+        bl.addSpacing(4)
+        bl.addWidget(sep)
+        bl.addSpacing(4)
+        self.btn_rect_mask = QPushButton("▭  Rect Mask")
+        self.btn_rect_mask.setToolTip("Drag a rectangular HUD mask on the 16:9 (M)")
+        self.btn_rect_mask.clicked.connect(
+            lambda: self._arm_mask(self.source_view.arm_create))
+        self.btn_poly_mask = QPushButton("⬠  Polygon Mask")
+        self.btn_poly_mask.setToolTip(
+            "Click points to draw a polygon HUD mask on the 16:9; "
+            "click the first point / Enter to close (P)")
+        self.btn_poly_mask.clicked.connect(
+            lambda: self._arm_mask(self.source_view.arm_polygon))
+        bl.addWidget(self.btn_rect_mask)
+        bl.addWidget(self.btn_poly_mask)
         bl.addStretch(1)
 
         self.btn_src = QPushButton("16:9")
@@ -401,6 +419,9 @@ class MainWindow(QMainWindow):
         self._show_viewport(0)
         arm_fn()
         self.source_view.setFocus()
+        poly = getattr(arm_fn, "__name__", "") == "arm_polygon"
+        self.set_status("click points, then click the first point or press Enter to close"
+                        if poly else "drag a rectangle over the HUD element")
 
     def _refresh_overlays(self) -> None:
         regs = []
@@ -413,6 +434,18 @@ class MainWindow(QMainWindow):
                 "shape": shape,
                 "points": n.polygon_points_source() if shape == "polygon" else [],
                 "selected": n.id == self._selected_id,
+            })
+        # the webcam overlay is also lifted from a source sub-rect - let it be
+        # dragged on the 16:9 like any other mask
+        fc = self._facecam_node()
+        if fc is not None:
+            regs.append({
+                "id": fc.id,
+                "label": "Webcam",
+                "rect": tuple(fc.params["source_rect"].value),
+                "shape": "rect",
+                "points": [],
+                "selected": fc.id == self._selected_id,
             })
         self.source_view.set_regions(regs)
 
