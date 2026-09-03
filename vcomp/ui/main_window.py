@@ -175,6 +175,7 @@ class MainWindow(QMainWindow):
         self.output_view = OutputViewport()
         self.timeline = Timeline()
         self.timeline.frameChanged.connect(self._request_frame)
+        self.timeline.playingChanged.connect(self._on_play_state)
 
         self.canvas = NodeCanvas(self.graph, self.undo_stack)
         self.canvas.nodeSelected.connect(self._on_node_selected)
@@ -563,7 +564,10 @@ class MainWindow(QMainWindow):
             self.timeline.set_cache_state(self.fetcher.cached_indices())
             return
         self._last_frame = arr
-        self.source_view.set_frame(arr)
+        # while playing the 9:16 output, don't spend time converting a frame for
+        # the hidden 16:9 source view
+        if not (self.timeline.is_playing and self._vp_stack.currentIndex() == 1):
+            self.source_view.set_frame(arr)
         self._render_current()
         self.timeline.set_cache_state(self.fetcher.cached_indices())
 
@@ -574,16 +578,25 @@ class MainWindow(QMainWindow):
                   if self._last_frame is not None else {})
         self.renderer.submit(idx, frames, idx / fps if fps else 0.0)
 
+    def _on_play_state(self, playing: bool) -> None:
+        self.renderer.playing = bool(playing)
+        fps = self._info.fps if self._info else 30.0
+        self.renderer.target_ms = 1000.0 / fps if fps > 0 else 33.0
+        if not playing:
+            # settle back to a crisp frame the moment playback stops
+            if not self.renderer.lock_full_quality:
+                self.renderer.preview_scale = 1.0
+            self._render_current()
+
     def _on_composited(self, index: int, arr: np.ndarray) -> None:
         self._last_output = arr
         if index == self.timeline.frame:
             self.output_view.set_frame(arr)
-        if self.renderer.lock_full_quality:
-            return
-        if self.renderer.last_render_ms > 130 and self.renderer.preview_scale > 0.25:
-            self.renderer.preview_scale = max(0.25, self.renderer.preview_scale / 2)
-        lbl = {1.0: "1x", 0.5: "½", 0.25: "¼"}.get(round(self.renderer.preview_scale, 2), "?")
-        self.lbl_preview.setText(f"Preview {lbl}")
+        # scale adaptation lives in the render worker now (fps-aware)
+        lbl = {1.0: "1x", 0.75: "¾", 0.5: "½", 0.25: "¼"}.get(
+            round(self.renderer.preview_scale, 2), f"{self.renderer.preview_scale:.2f}")
+        self.lbl_preview.setText("Preview 1x" if self.renderer.lock_full_quality
+                                 else f"Preview {lbl}")
 
     def _on_gl_ready(self, renderer: str) -> None:
         self.lbl_gpu.setText(f"GPU: {renderer[:40]}")

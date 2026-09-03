@@ -36,7 +36,10 @@ class RenderWorker(QObject):
         self.last_render_ms = 0.0
         self.want_thumbs = False
         self.lock_full_quality = False
+        self.playing = False
+        self.target_ms = 33.0   # per-frame budget while playing (set from clip fps)
         self._fast_streak = 0
+        self._slow_streak = 0
 
     def set_graph(self, graph) -> None:
         self._graph = graph
@@ -98,7 +101,9 @@ class RenderWorker(QObject):
 
         from vcomp.render.frame_pipeline import render_graph_frame
 
-        thumbs: dict | None = {} if self.want_thumbs else None
+        # Skip node thumbnails while playing - they add a full extra readback per
+        # node and are the main reason 9:16 playback stutters.
+        thumbs: dict | None = {} if (self.want_thumbs and not self.playing) else None
         scale = 1.0 if self.lock_full_quality else self.preview_scale
         t0 = time.perf_counter()
         out = render_graph_frame(self._comp, self._graph, frames, t,
@@ -108,12 +113,33 @@ class RenderWorker(QObject):
         if thumbs:
             self.thumbsReady.emit(thumbs)
 
-        # gentle preview-scale recovery when frames are consistently cheap
         if self.lock_full_quality:
             return
+
+        if self.playing:
+            # Hold real-time: drop resolution fast when we blow the frame budget,
+            # recover slowly once we have comfortable headroom.
+            budget = max(16.0, self.target_ms)
+            if self.last_render_ms > budget and self.preview_scale > 0.25:
+                self._slow_streak += 1
+                self._fast_streak = 0
+                if self._slow_streak >= 2:
+                    self.preview_scale = max(0.25, round(self.preview_scale - 0.25, 2))
+                    self._slow_streak = 0
+            elif self.last_render_ms < budget * 0.45 and self.preview_scale < 1.0:
+                self._fast_streak += 1
+                self._slow_streak = 0
+                if self._fast_streak >= 12:
+                    self.preview_scale = min(1.0, round(self.preview_scale + 0.25, 2))
+                    self._fast_streak = 0
+            else:
+                self._fast_streak = self._slow_streak = 0
+            return
+
+        # paused / scrubbing: creep back toward full res when frames are cheap
         if self.last_render_ms < 22 and self.preview_scale < 1.0:
             self._fast_streak += 1
-            if self._fast_streak >= 10:
+            if self._fast_streak >= 6:
                 self.preview_scale = min(1.0, self.preview_scale * 2)
                 self._fast_streak = 0
         else:

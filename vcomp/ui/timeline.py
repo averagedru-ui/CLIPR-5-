@@ -177,6 +177,7 @@ def _nice_step(sec: float) -> float:
 class Timeline(QWidget):
     frameChanged = Signal(int)
     inOutChanged = Signal(int, int)
+    playingChanged = Signal(bool)
 
     def __init__(self) -> None:
         super().__init__()
@@ -190,7 +191,7 @@ class Timeline(QWidget):
         self._play_f0 = 0
 
         self._timer = QTimer(self)
-        self._timer.setInterval(8)
+        self._timer.setInterval(16)
         self._timer.timeout.connect(self._tick)
 
         self._build()
@@ -263,6 +264,10 @@ class Timeline(QWidget):
     def frame(self) -> int:
         return self._frame
 
+    @property
+    def is_playing(self) -> bool:
+        return self._timer.isActive()
+
     def seek(self, index: int) -> None:
         index = max(0, min(int(index), max(0, self._count - 1)))
         if index == self._frame:
@@ -273,11 +278,14 @@ class Timeline(QWidget):
         self.frameChanged.emit(index)
 
     def set_playing(self, on: bool) -> None:
+        was_active = self._timer.isActive()
         if on and self._count > 1:
             self._play_t0 = time.monotonic()
             self._play_f0 = self._frame if self._frame < self.out_point else self.in_point
             if self._frame >= self.out_point:
                 self.seek(self.in_point)
+            # schedule at ~2x frame rate for headroom, never a busy 100+ Hz timer
+            self._timer.setInterval(max(8, int(1000.0 / (self._fps * 2.0))))
             self._timer.start()
         else:
             self._timer.stop()
@@ -286,6 +294,8 @@ class Timeline(QWidget):
             self.btn_play.setChecked(on)
             self.btn_play.blockSignals(False)
         self.btn_play.setText("Pause" if on else "Play")
+        if bool(on) != was_active:
+            self.playingChanged.emit(bool(on and self._count > 1))
 
     def toggle_play(self) -> None:
         self.set_playing(not self._timer.isActive())
