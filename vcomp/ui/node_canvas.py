@@ -25,6 +25,8 @@ from vcomp.ui import commands as cmd
 log = logging.getLogger("vcomp.canvas")
 
 _IDENT = "vcomp"
+# NodeGraphQt ignores the app font; pick a real UI family (fallbacks for non-Win).
+_NODE_FONT = "Segoe UI"
 _PFX = "vc_"   # NodeGraphQt reserves names like 'color', 'border_color', 'width'
 
 _WIRE_COLOR = {
@@ -320,21 +322,21 @@ class NodeCanvas(QObject):
         self.set_thumbs_visible(self._thumbs_visible)   # enforce hidden by default
 
     def _restyle_fonts(self) -> None:
-        """Make node text legible: solid white, bolder, a size up. NodeGraphQt
-        defaults are a thin 8pt port label + 40%-transparent white."""
+        """Make node text legible. NodeGraphQt hardcodes a bare ``QFont()`` which
+        resolves to the generic 'Sans Serif' alias (thin, ugly on Windows) at
+        8pt with 40%-transparent white. Force a real UI family, bump size/weight,
+        full-opacity cream."""
+        title_f = QFont(_NODE_FONT, 12)
+        title_f.setWeight(QFont.Weight.Bold)
+        port_f = QFont(_NODE_FONT, 10)
+        port_f.setWeight(QFont.Weight.DemiBold)
         for ng in self.ng.all_nodes():
             try:
                 v = ng.view
                 v.text_color = (245, 240, 230, 255)
-                tf = v._text_item.font()
-                tf.setPointSizeF(12.0)
-                tf.setWeight(QFont.Weight.DemiBold)
-                v._text_item.setFont(tf)
+                v._text_item.setFont(title_f)
                 for _p, t in list(v._input_items.items()) + list(v._output_items.items()):
-                    pf = t.font()
-                    pf.setPointSizeF(9.5)
-                    pf.setWeight(QFont.Weight.Medium)
-                    t.setFont(pf)
+                    t.setFont(port_f)
                 v.draw_node()
             except Exception:  # noqa: BLE001
                 log.exception("restyle node fonts")
