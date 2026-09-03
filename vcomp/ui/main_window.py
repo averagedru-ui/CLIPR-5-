@@ -72,6 +72,9 @@ class MainWindow(QMainWindow):
         self._info: MediaInfo | None = None
         self._last_frame: np.ndarray | None = None
         self._last_output: np.ndarray | None = None
+        self._req_prev = 0        # last requested frame index (detects loop wrap)
+        self._shown_src = -1      # freshest source frame index shown while playing
+        self._shown_out = -1      # freshest composited frame index shown while playing
         self._selected_id: str | None = None
         self._project_path = None
 
@@ -557,22 +560,34 @@ class MainWindow(QMainWindow):
 
     def _request_frame(self, index: int) -> None:
         self.lbl_playhead.setText(f"f{index}")
+        if index < self._req_prev - 1:      # loop wrap / backward scrub
+            self._shown_src = self._shown_out = -1
+        self._req_prev = index
         self.fetcher.request(index)
 
     def _on_frame(self, index: int, arr: np.ndarray) -> None:
-        if index != self.timeline.frame:
+        playing = self.timeline.is_playing
+        # Paused: only the exact playhead frame matters. Playing: the pipeline
+        # lags the wall-clock playhead, so take the freshest frame we get rather
+        # than discarding everything and freezing the view.
+        if playing:
+            if index <= self._shown_src:
+                self.timeline.set_cache_state(self.fetcher.cached_indices())
+                return
+            self._shown_src = index
+        elif index != self.timeline.frame:
             self.timeline.set_cache_state(self.fetcher.cached_indices())
             return
+
         self._last_frame = arr
-        # while playing the 9:16 output, don't spend time converting a frame for
-        # the hidden 16:9 source view
-        if not (self.timeline.is_playing and self._vp_stack.currentIndex() == 1):
+        if not (playing and self._vp_stack.currentIndex() == 1):
             self.source_view.set_frame(arr)
-        self._render_current()
+        self._render_current(index)
         self.timeline.set_cache_state(self.fetcher.cached_indices())
 
-    def _render_current(self) -> None:
-        idx = self.timeline.frame
+    def _render_current(self, idx: int | None = None) -> None:
+        if idx is None:
+            idx = self.timeline.frame
         fps = self._info.fps if self._info else 30.0
         frames = ({n.id: self._last_frame for n in self.graph.clip_source_nodes()}
                   if self._last_frame is not None else {})
@@ -582,6 +597,8 @@ class MainWindow(QMainWindow):
         self.renderer.playing = bool(playing)
         fps = self._info.fps if self._info else 30.0
         self.renderer.target_ms = 1000.0 / fps if fps > 0 else 33.0
+        self.fetcher.set_readahead(16 if playing else 0)
+        self._shown_src = self._shown_out = -1
         if not playing:
             # settle back to a crisp frame the moment playback stops
             if not self.renderer.lock_full_quality:
@@ -590,7 +607,11 @@ class MainWindow(QMainWindow):
 
     def _on_composited(self, index: int, arr: np.ndarray) -> None:
         self._last_output = arr
-        if index == self.timeline.frame:
+        if self.timeline.is_playing:
+            if index > self._shown_out:
+                self._shown_out = index
+                self.output_view.set_frame(arr)
+        elif index == self.timeline.frame:
             self.output_view.set_frame(arr)
         # scale adaptation lives in the render worker now (fps-aware)
         lbl = {1.0: "1x", 0.75: "¾", 0.5: "½", 0.25: "¼"}.get(

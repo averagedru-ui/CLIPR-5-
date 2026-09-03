@@ -37,6 +37,9 @@ class FrameFetcher(QObject):
         self._open_rotation: int | None = None
         self._running = True
         self._decoder: VideoDecoder | None = None
+        self._readahead = 0        # frames to decode past the playhead while playing
+        self._last_index = -1      # latest frame the UI actually asked for (playhead)
+        self._warm_to = -1         # highest index the readahead has decoded to
 
     # -------------------------------------------------------------- public API
     def start(self) -> None:
@@ -52,6 +55,14 @@ class FrameFetcher(QObject):
     def request(self, index: int) -> None:
         self._mutex.lock()
         self._pending = index
+        self._cond.wakeAll()
+        self._mutex.unlock()
+
+    def set_readahead(self, n: int) -> None:
+        """While playing, decode this many frames past the latest request into
+        the decoder's cache so the next request returns without a decode stall."""
+        self._mutex.lock()
+        self._readahead = max(0, int(n))
         self._cond.wakeAll()
         self._mutex.unlock()
 
@@ -74,7 +85,8 @@ class FrameFetcher(QObject):
     def _loop(self) -> None:
         while True:
             self._mutex.lock()
-            while self._running and self._pending is None and self._open_path is None:
+            while (self._running and self._pending is None and self._open_path is None
+                   and not self._can_readahead()):
                 self._cond.wait(self._mutex)
             if not self._running:
                 self._mutex.unlock()
@@ -84,15 +96,43 @@ class FrameFetcher(QObject):
             self._open_path = None
             index = self._pending
             self._pending = None
+            span = self._readahead
             self._mutex.unlock()
 
             if path is not None:
                 self._do_open(path, rotation)
             if index is not None and self._decoder is not None:
+                self._last_index = index
+                if index > self._warm_to:
+                    self._warm_to = index
                 self._do_decode(index)
+            elif span and self._decoder is not None and self._last_index >= 0:
+                self._warm_next(span)
 
         if self._decoder is not None:
             self._decoder.close()
+
+    def _can_readahead(self) -> bool:
+        return bool(self._readahead and self._decoder is not None
+                    and self._last_index >= 0
+                    and self._warm_to < self._last_index + self._readahead)
+
+    def _warm_next(self, span: int) -> None:
+        """Decode the next not-yet-cached frame in (playhead, playhead+span]."""
+        try:
+            total = self._decoder.frame_count or (self._last_index + span + 1)
+            hi = min(self._last_index + span, total - 1)
+            cached = self._decoder.cached_indices()
+            n = self._warm_to + 1
+            while n <= hi:
+                if n not in cached:
+                    self._decoder.frame_at(self._decoder.index_to_time(n))
+                    self._warm_to = n
+                    return
+                n += 1
+            self._warm_to = hi
+        except Exception:  # noqa: BLE001
+            log.exception("readahead decode failed")
 
     def _do_open(self, path: str, rotation: int | None = None) -> None:
         try:

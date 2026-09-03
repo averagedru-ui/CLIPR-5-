@@ -116,31 +116,19 @@ class RenderWorker(QObject):
         if self.lock_full_quality:
             return
 
-        if self.playing:
-            # Hold real-time: drop resolution fast when we blow the frame budget,
-            # recover slowly once we have comfortable headroom.
-            budget = max(16.0, self.target_ms)
-            if self.last_render_ms > budget and self.preview_scale > 0.25:
-                self._slow_streak += 1
-                self._fast_streak = 0
-                if self._slow_streak >= 2:
-                    self.preview_scale = max(0.25, round(self.preview_scale - 0.25, 2))
-                    self._slow_streak = 0
-            elif self.last_render_ms < budget * 0.45 and self.preview_scale < 1.0:
-                self._fast_streak += 1
+        # NOTE: benchmarking showed rendering at render_scale < 1.0 is *slower*
+        # than full res for this pipeline (full-size clip upload every frame +
+        # FBO-pool thrash at odd sizes), so playback no longer drops resolution.
+        # Only fall back if a frame is genuinely catastrophic.
+        if self.last_render_ms > 80 and self.preview_scale > 0.5:
+            self._slow_streak += 1
+            if self._slow_streak >= 3:
+                self.preview_scale = 0.5
                 self._slow_streak = 0
-                if self._fast_streak >= 12:
-                    self.preview_scale = min(1.0, round(self.preview_scale + 0.25, 2))
-                    self._fast_streak = 0
-            else:
-                self._fast_streak = self._slow_streak = 0
-            return
-
-        # paused / scrubbing: creep back toward full res when frames are cheap
-        if self.last_render_ms < 22 and self.preview_scale < 1.0:
+        elif self.last_render_ms < 45 and self.preview_scale < 1.0:
             self._fast_streak += 1
-            if self._fast_streak >= 6:
-                self.preview_scale = min(1.0, self.preview_scale * 2)
+            if self._fast_streak >= 4:
+                self.preview_scale = 1.0
                 self._fast_streak = 0
         else:
-            self._fast_streak = 0
+            self._fast_streak = self._slow_streak = 0
