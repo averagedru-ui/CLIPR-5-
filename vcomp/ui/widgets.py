@@ -26,6 +26,7 @@ class ScrubSlider(QWidget):
         self._guard = False
 
         self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setMinimumWidth(60)
         self.slider.setRange(0, _TICKS)
         self.slider.valueChanged.connect(self._from_slider)
 
@@ -35,7 +36,7 @@ class ScrubSlider(QWidget):
         self.spin.setSingleStep(step or ((self._max - self._min) / 100.0))
         self.spin.setKeyboardTracking(False)
         self.spin.valueChanged.connect(self._from_spin)
-        self.spin.setFixedWidth(84)
+        self.spin.setFixedWidth(70)
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)

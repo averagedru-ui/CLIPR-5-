@@ -8,17 +8,18 @@ from __future__ import annotations
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
-BG        = "#0e0e12"    # window ground
-SURFACE   = "#16161d"    # panels
-SURFACE_2 = "#1e1e27"    # inputs / raised
-SURFACE_3 = "#282833"    # hover
-BORDER    = "#2c2c38"
-BORDER_HI = "#3a3a48"
-TEXT      = "#e6e6ec"
-TEXT_DIM  = "#8b8b99"
-ACCENT    = "#4c8dff"
-ACCENT_HI = "#6ba0ff"
-ACCENT_DN = "#3a72d8"
+# Dark ground, forest-green accent, warm cream text, tan highlights.
+BG        = "#101210"    # window ground (warm near-black)
+SURFACE   = "#181a17"    # panels
+SURFACE_2 = "#20231e"    # inputs / raised
+SURFACE_3 = "#2b2f28"    # hover
+BORDER    = "#343a30"
+BORDER_HI = "#47503f"
+TEXT      = "#F5F0E6"    # warm cream
+TEXT_DIM  = "#BFA880"    # warm tan/khaki
+ACCENT    = "#3D6147"    # forest green
+ACCENT_HI = "#4f7d5c"    # lighter green (hover)
+ACCENT_DN = "#2c4735"    # darker green (pressed)
 DANGER    = "#e5484d"
 
 # back-compat aliases used elsewhere
@@ -110,17 +111,21 @@ QCheckBox::indicator {{
 }}
 QCheckBox::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT}; }}
 
-/* group boxes (properties sections) */
+/* group boxes (properties sections) - flat divider, no pill behind the title */
 QGroupBox {{
-    border: 1px solid {BORDER};
-    border-radius: 8px;
-    margin-top: 14px;
-    padding: 8px;
-    background: {SURFACE};
+    border: 0;
+    border-top: 1px solid {BORDER};
+    border-radius: 0;
+    margin-top: 20px;
+    padding: 8px 2px 2px 2px;
+    background: transparent;
 }}
 QGroupBox::title {{
-    subcontrol-origin: margin; left: 10px; padding: 0 5px;
-    color: {TEXT_DIM}; font-weight: 600; text-transform: uppercase; font-size: 10px;
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 0; padding: 2px 0;
+    background: transparent;
+    color: {TEXT_DIM}; font-weight: 700; text-transform: uppercase; font-size: 10px;
 }}
 
 /* scrollbars */

@@ -14,7 +14,7 @@ from typing import Callable
 import numpy as np
 from NodeGraphQt import BaseNode, NodeBaseWidget, NodeGraph
 from PySide6.QtCore import QEvent, QObject, QPointF, Qt, Signal
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtGui import QFont, QImage, QPixmap
 from PySide6.QtWidgets import QLabel
 
 from vcomp.core.graph import Connection, Graph
@@ -178,8 +178,8 @@ class NodeCanvas(QObject):
 
         self.ng = NodeGraph()
         try:
-            self.ng.set_background_color(13, 13, 18)
-            self.ng.set_grid_color(30, 30, 40)
+            self.ng.set_background_color(14, 16, 13)
+            self.ng.set_grid_color(32, 38, 30)
             self.ng.set_grid_mode(1)          # dots
         except Exception:  # noqa: BLE001
             pass
@@ -316,7 +316,28 @@ class NodeCanvas(QObject):
                                  b.input(self._port_index(b, c.to_port, True)))
         finally:
             self._syncing = False
+        self._restyle_fonts()
         self.set_thumbs_visible(self._thumbs_visible)   # enforce hidden by default
+
+    def _restyle_fonts(self) -> None:
+        """Make node text legible: solid white, bolder, a size up. NodeGraphQt
+        defaults are a thin 8pt port label + 40%-transparent white."""
+        for ng in self.ng.all_nodes():
+            try:
+                v = ng.view
+                v.text_color = (245, 240, 230, 255)
+                tf = v._text_item.font()
+                tf.setPointSizeF(12.0)
+                tf.setWeight(QFont.Weight.DemiBold)
+                v._text_item.setFont(tf)
+                for _p, t in list(v._input_items.items()) + list(v._output_items.items()):
+                    pf = t.font()
+                    pf.setPointSizeF(9.5)
+                    pf.setWeight(QFont.Weight.Medium)
+                    t.setFont(pf)
+                v.draw_node()
+            except Exception:  # noqa: BLE001
+                log.exception("restyle node fonts")
 
     @staticmethod
     def _port_index(ng_node, port_name: str, is_input: bool) -> int:

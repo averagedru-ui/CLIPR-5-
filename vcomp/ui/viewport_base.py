@@ -84,7 +84,7 @@ class ImageViewport(QWidget):
     # ---------------------------------------------------------------- paint
     def paintEvent(self, _e) -> None:  # noqa: N802
         p = QPainter(self)
-        p.fillRect(self.rect(), QColor("#0d0d10"))
+        p.fillRect(self.rect(), QColor("#101210"))
         if self._pixmap is not None:
             p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             p.drawPixmap(self._fit_rect(), self._pixmap, QRectF(self._pixmap.rect()))

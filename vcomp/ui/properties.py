@@ -43,13 +43,17 @@ class PropertiesPanel(QWidget):
         self._widgets: dict[str, QWidget] = {}
         self._built_key = None
 
+        self.setMinimumWidth(280)
+
         self._body = QWidget()
         self._body_lay = QVBoxLayout(self._body)
         self._body_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._body_lay.setContentsMargins(10, 8, 12, 10)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(self._body)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -91,6 +95,9 @@ class PropertiesPanel(QWidget):
         for gname, items in groups.items():
             box = QGroupBox(gname)
             form = QFormLayout(box)
+            form.setContentsMargins(2, 4, 2, 4)
+            form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
             for name, param in items:
                 w = self._widget_for(node_id, name, param)
                 if w is not None:
@@ -296,6 +303,7 @@ class PropertiesPanel(QWidget):
             s.setDecimals(3)
             s.setRange(-1e6, 1e6)
             s.setSingleStep(0.01)
+            s.setMaximumWidth(96)
             s.setValue(float(comp))
             spins.append(s)
             lay.addWidget(s)
