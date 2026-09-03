@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
@@ -72,6 +73,7 @@ class MainWindow(QMainWindow):
         self._info: MediaInfo | None = None
         self._last_frame: np.ndarray | None = None
         self._last_output: np.ndarray | None = None
+        self._pending_inout: tuple[int, int] | None = None
         self._req_prev = 0        # last requested frame index (detects loop wrap)
         self._shown_src = -1      # freshest source frame index shown while playing
         self._shown_out = -1      # freshest composited frame index shown while playing
@@ -555,6 +557,14 @@ class MainWindow(QMainWindow):
         rot = f"  rot{info.rotation}" if info.rotation else ""
         self.lbl_source.setText(f"{dw}x{dh}{rot}  {info.fps:.3f}fps{vfr}  {info.duration:.1f}s")
         self.set_status(f"loaded {info.path}")
+        if self._pending_inout is not None:
+            a, b = self._pending_inout
+            self._pending_inout = None
+            hi = max(0, info.frame_count - 1)
+            a = max(0, min(a, hi))
+            b = max(a, min(b if b > 0 else hi, hi))
+            self.timeline._set_in(a)
+            self.timeline._set_out(b)
         self._refresh_overlays()
         self._show_viewport(1)   # show the composited 9:16 result
         self._request_frame(0)
@@ -648,8 +658,17 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.timeline.set_playing(False)
+        self._autosave.stop()
         self.fetcher.stop()
         self.renderer.stop()
+        # clean shutdown -> drop crash-recovery autosaves so the next launch
+        # doesn't falsely claim CLIPR didn't close cleanly
+        try:
+            from vcomp.core.autosave import clear_recovery
+            clear_recovery()
+            self.settings.set("recovery_declined", "")
+        except Exception:  # noqa: BLE001
+            log.exception("clear recovery on close")
         self.settings.set("layout_version", self._LAYOUT_VERSION)
         self.settings.set("window_geometry",
                           base64.b64encode(bytes(self.saveGeometry())).decode("ascii"))
@@ -718,17 +737,10 @@ class MainWindow(QMainWindow):
             return
         try:
             proj = Project.load(path)
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, KeyError, TypeError) as exc:
             QMessageBox.critical(self, "Open", str(exc))
             return
-        self.graph.load_dict(proj.graph.to_dict())
-        self.undo_stack.clear()
-        self._project_path = path
-        self.canvas.sync_from_core()
-        clip = next(iter(self.graph.clip_source_nodes()), None)
-        if clip and clip.params["file_path"].value:
-            self.fetcher.open(clip.params["file_path"].value, self._orientation_override())
-        self.set_status(f"opened {path}")
+        self._load_project_obj(proj, status=f"opened {path}", project_path=path)
 
     def _save_project(self) -> None:
         if self._project_path:
@@ -751,8 +763,17 @@ class MainWindow(QMainWindow):
         self.set_status(f"saved {path}")
 
     # ---------------------------------------------------------------- polish
+    def _has_unsaved_work(self) -> bool:
+        """Worth autosaving? A clip is loaded, or the user has edited the graph."""
+        if self._info is not None:
+            return True
+        try:
+            return not self.undo_stack.isClean()
+        except Exception:  # noqa: BLE001
+            return len(self.graph.nodes) > 1
+
     def _do_autosave(self) -> None:
-        if len(self.graph.nodes) <= 1:
+        if not self._has_unsaved_work():
             return
         from vcomp.core.autosave import write_autosave
         from vcomp.core.project import Project
@@ -763,27 +784,62 @@ class MainWindow(QMainWindow):
             self.lbl_action.setText("autosaved")
 
     def _offer_recovery(self) -> None:
-        from vcomp.core.autosave import clear_recovery, pending_recovery
+        from vcomp.core.autosave import clear_recovery, recoverable
         from vcomp.core.project import Project
 
-        rec = pending_recovery()
-        if not rec:
+        cands = recoverable()
+        if not cands:
             return
+        # skip if the user already declined this exact autosave last launch
+        last_declined = self.settings.get("recovery_declined") or ""
+        if last_declined == cands[0].name:
+            return
+
+        newest = cands[0]
         if QMessageBox.question(
-                self, "Recover", f"An autosave from {rec.stem} was found. Restore it?"
-        ) == QMessageBox.StandardButton.Yes:
+                self, "Recover unsaved work",
+                f"CLIPR didn't close cleanly.\n\nRestore the autosave from "
+                f"{newest.stem.replace('autosave_', '').replace('_', ' ')}?",
+        ) != QMessageBox.StandardButton.Yes:
+            self.settings.set("recovery_declined", newest.name)
+            self.settings.save()
+            return
+
+        for path in cands:
             try:
-                proj = Project.load(rec)
-                self.graph.load_dict(proj.graph.to_dict())
-                self.undo_stack.clear()
-                self.canvas.sync_from_core()
-                clip = next(iter(self.graph.clip_source_nodes()), None)
-                if clip and clip.params["file_path"].value:
-                    self.fetcher.open(clip.params["file_path"].value, self._orientation_override())
-                self.set_status("recovered autosave")
-            except (ValueError, OSError) as exc:
-                self.set_status(f"recovery failed: {exc}")
-        clear_recovery()
+                proj = Project.load(path)
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                log.warning("autosave %s unreadable: %s", path.name, exc)
+                continue
+            self._load_project_obj(proj, status=f"recovered autosave ({path.stem})")
+            self.settings.set("recovery_declined", "")
+            self.settings.save()
+            clear_recovery()
+            return
+
+        self.set_status("recovery failed - all autosaves unreadable")
+
+    def _load_project_obj(self, proj, *, status: str, project_path=None) -> None:
+        """Shared post-load: swap the graph in, rebuild the canvas, reload media,
+        restore the timeline range."""
+        self.graph.load_dict(proj.graph.to_dict())
+        self.undo_stack.clear()
+        self._project_path = project_path
+        self._info = None
+        self._shown_src = self._shown_out = -1
+        self.canvas.sync_from_core()
+
+        clip = next(iter(self.graph.clip_source_nodes()), None)
+        path = clip.params["file_path"].value if clip else ""
+        if path and os.path.exists(path):
+            self._pending_inout = (int(proj.in_point), int(proj.out_point))
+            self.fetcher.open(path, self._orientation_override())
+        else:
+            if path:
+                self.set_status(f"media not found: {path} - use Open Clip to relink")
+            self._refresh_overlays()
+            self._render_current()
+        self.set_status(status)
 
     def _set_preview_scale(self, s: float) -> None:
         self.renderer.preview_scale = s

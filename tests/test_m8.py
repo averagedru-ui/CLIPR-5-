@@ -30,6 +30,44 @@ def test_autosave_prune_and_recovery(tmp_path, monkeypatch):
     assert autosave.pending_recovery() is None
 
 
+def test_recovery_skips_corrupt_newest(tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from vcomp.core import autosave
+    from vcomp.core.project import Project
+
+    g = Graph()
+    build_default_graph(g)
+    good = autosave.write_autosave(Project(graph=g))
+    time.sleep(1.05)
+    bad = autosave.write_autosave(Project(graph=g))
+    bad.write_text("{ truncated json", encoding="utf-8")   # simulate crash mid-write
+
+    cands = autosave.recoverable()
+    assert cands[0] == bad and cands[1] == good     # newest first
+
+    loaded = None
+    for p in cands:
+        try:
+            loaded = Project.load(p)
+            break
+        except (ValueError, OSError, KeyError, TypeError):
+            continue
+    assert loaded is not None and loaded.path == good
+
+
+def test_autosave_write_is_atomic(tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from vcomp.core import autosave
+    from vcomp.core.project import Project
+
+    g = Graph()
+    build_default_graph(g)
+    autosave.write_autosave(Project(graph=g))
+    assert not list(autosave._dir().glob("*.tmp"))   # no leftover temp file
+
+
 def test_guides_node_passthrough(compositor):
     from vcomp.core.graph import EvalContext
 
