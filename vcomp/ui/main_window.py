@@ -597,31 +597,16 @@ class MainWindow(QMainWindow):
                                              (r, g, b, 1.0)))
             self.set_status(f"picked colour -> {target}")
 
-    def _pin_reference_height(self, node_id) -> None:
-        """Record the resolution the user is actually eyeballing a region at, so
-        save -> load -> apply reproduces the exact same on-canvas geometry."""
-        node = self.graph.nodes.get(node_id)
-        if node is None or "reference_height" not in node.params:
-            return
-        h = int(self._src_dims()[1])
-        if int(node.params["reference_height"].value) != h:
-            from vcomp.ui.commands import SetParamCmd
-            self.undo_stack.push(SetParamCmd(self.graph, node_id, "reference_height", h))
-
     def _on_move_dest(self, node_id, dx, dy, final) -> None:
         from vcomp.ui.commands import SetParamCmd
 
         self.undo_stack.push(SetParamCmd(self.graph, node_id, "dest_x", float(dx)))
         self.undo_stack.push(SetParamCmd(self.graph, node_id, "dest_y", float(dy)))
-        if final:
-            self._pin_reference_height(node_id)
 
     def _on_scale_dest(self, node_id, scale, final) -> None:
         from vcomp.ui.commands import SetParamCmd
 
         self.undo_stack.push(SetParamCmd(self.graph, node_id, "dest_scale", float(scale)))
-        if final:
-            self._pin_reference_height(node_id)
 
     def _on_rotate_dest(self, node_id, deg, final) -> None:
         from vcomp.ui.commands import SetParamCmd

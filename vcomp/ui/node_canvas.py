@@ -65,13 +65,14 @@ class ThumbWidget(NodeBaseWidget):
     """A small live preview of a node's Image output, embedded in the node body."""
 
     def __init__(self, parent=None):
-        super().__init__(parent)
-        self.set_name("vc_thumb")
-        self._label = QLabel()
-        self._label.setFixedSize(_THUMB_W, _THUMB_H)
-        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._label.setStyleSheet("background:#0d0d10; border:1px solid #2a2a30;")
-        self.set_custom_widget(self._label)
+        # NodeBaseWidget.__init__(parent, name, label); `label` must stay a str -
+        # do NOT shadow self._label with a QWidget (breaks set_custom_widget).
+        super().__init__(parent, name="vc_thumb", label="")
+        self._img = QLabel()
+        self._img.setFixedSize(_THUMB_W, _THUMB_H)
+        self._img.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._img.setStyleSheet("background:#0d0d10; border:1px solid #2a2a30;")
+        self.set_custom_widget(self._img)
 
     def get_value(self):
         return ""
@@ -83,10 +84,10 @@ class ThumbWidget(NodeBaseWidget):
         h, w = arr.shape[:2]
         img = QImage(np.ascontiguousarray(arr).data, w, h, 4 * w,
                      QImage.Format.Format_RGBA8888).copy()
-        self._label.setPixmap(QPixmap.fromImage(img))
+        self._img.setPixmap(QPixmap.fromImage(img))
 
     def clear(self) -> None:
-        self._label.clear()
+        self._img.clear()
 
 
 def _build_ngqt_classes() -> dict[str, type]:
@@ -115,7 +116,7 @@ def _build_ngqt_classes() -> dict[str, type]:
                 try:
                     self.add_custom_widget(ThumbWidget(), tab="Node")
                 except Exception:  # noqa: BLE001
-                    pass
+                    log.exception("could not attach node preview widget")
 
         cls = type(cname, (BaseNode,), {
             "__identifier__": _IDENT,

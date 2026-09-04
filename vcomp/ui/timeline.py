@@ -189,6 +189,7 @@ class Timeline(QWidget):
         self._loop = False
         self._play_t0 = 0.0
         self._play_f0 = 0
+        self._last_ui_sync = 0.0
 
         self._timer = QTimer(self)
         self._timer.setInterval(16)
@@ -273,8 +274,13 @@ class Timeline(QWidget):
         if index == self._frame:
             return
         self._frame = index
-        self.ruler.set_frame(index)
-        self._update_label()
+        # while playing, the ruler repaint + label relayout compete with the
+        # viewport paint on the GUI thread - throttle them to ~20 Hz
+        now = time.monotonic()
+        if not self._timer.isActive() or now - self._last_ui_sync > 0.05:
+            self._last_ui_sync = now
+            self.ruler.set_frame(index)
+            self._update_label()
         self.frameChanged.emit(index)
 
     def set_playing(self, on: bool) -> None:
@@ -289,6 +295,8 @@ class Timeline(QWidget):
             self._timer.start()
         else:
             self._timer.stop()
+            self.ruler.set_frame(self._frame)   # land the playhead exactly
+            self._update_label()
         if self.btn_play.isChecked() != on:
             self.btn_play.blockSignals(True)
             self.btn_play.setChecked(on)
