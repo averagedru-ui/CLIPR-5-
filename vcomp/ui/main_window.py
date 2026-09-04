@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import time
 
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
@@ -77,6 +78,8 @@ class MainWindow(QMainWindow):
         self._req_prev = 0        # last requested frame index (detects loop wrap)
         self._shown_src = -1      # freshest source frame index shown while playing
         self._shown_out = -1      # freshest composited frame index shown while playing
+        self._pb_count = 0
+        self._pb_t0 = 0.0
         self._selected_id: str | None = None
         self._project_path = None
 
@@ -96,6 +99,7 @@ class MainWindow(QMainWindow):
         self.renderer.ready.connect(self._on_gl_ready)
         self.renderer.frameComposited.connect(self._on_composited)
         self.renderer.thumbsReady.connect(self._on_thumbs)
+        self.renderer.cacheState.connect(self._on_render_cache)
         self.renderer.failed.connect(self._on_fail)
 
         self._build_menus()
@@ -318,12 +322,14 @@ class MainWindow(QMainWindow):
         self.renderer.lock_full_quality = bool(on)
         if on:
             self.renderer.preview_scale = 1.0
+        self.renderer.invalidate_cache()
         self.lbl_preview.setText("Preview 1x" if on else "Preview auto")
         self._render_current()
 
     def _toggle_thumbs(self, on: bool) -> None:
         self.renderer.want_thumbs = bool(on)
         self.canvas.set_thumbs_visible(bool(on))
+        self.renderer.invalidate_cache()
         if on:
             self._render_current()
 
@@ -396,11 +402,15 @@ class MainWindow(QMainWindow):
     def _on_graph_changed(self) -> None:
         self.props.refresh()
         self._refresh_overlays()
+        self.renderer.invalidate_cache()   # graph edit -> cached preview frames stale
         fc = self._facecam_node()
         self.act_webcam.blockSignals(True)
         self.act_webcam.setChecked(fc is not None and fc.enabled)
         self.act_webcam.blockSignals(False)
         self._rerender.start()
+
+    def _on_render_cache(self, indices: set) -> None:
+        self.timeline.set_cache_state(indices)
 
     # -------------------------------------------------------------- overlays
     def _src_dims(self) -> tuple[int, int]:
@@ -656,6 +666,7 @@ class MainWindow(QMainWindow):
 
     def _on_opened(self, info: MediaInfo) -> None:
         self._info = info
+        self.renderer.invalidate_cache()
         self.settings.add_recent_file(info.path)
         self.settings.save()
         self.timeline.set_media(info.frame_count, info.fps)
@@ -721,6 +732,8 @@ class MainWindow(QMainWindow):
         self.renderer.target_ms = 1000.0 / fps if fps > 0 else 33.0
         self.fetcher.set_readahead(16 if playing else 0)
         self._shown_src = self._shown_out = -1
+        self._pb_count = 0
+        self._pb_t0 = time.monotonic()
         if not playing:
             # settle back to a crisp frame the moment playback stops
             if not self.renderer.lock_full_quality:
@@ -733,6 +746,14 @@ class MainWindow(QMainWindow):
             if index > self._shown_out:
                 self._shown_out = index
                 self.output_view.set_frame(arr)
+                self._pb_count += 1
+            now = time.monotonic()
+            if now - self._pb_t0 >= 1.0:
+                log.info("playback: %d disp fps | render %.1fms | preview %.2f",
+                         self._pb_count, self.renderer.last_render_ms,
+                         self.renderer.preview_scale)
+                self._pb_count = 0
+                self._pb_t0 = now
         elif index == self.timeline.frame:
             self.output_view.set_frame(arr)
         # scale adaptation lives in the render worker now (fps-aware)
@@ -954,6 +975,7 @@ class MainWindow(QMainWindow):
 
     def _set_preview_scale(self, s: float) -> None:
         self.renderer.preview_scale = s
+        self.renderer.invalidate_cache()
         label = {0.25: "¼", 0.5: "½", 1.0: "1x"}[s]
         self.lbl_preview.setText(f"Preview {label}")
         self._render_current()
