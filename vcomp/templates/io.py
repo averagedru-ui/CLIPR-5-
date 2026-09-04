@@ -164,10 +164,11 @@ def apply_template(graph: Graph, tpl: Template, clip_resolution: tuple[int, int]
         )
         new_rect = coords.remap_region(rect, ref_res, clip_resolution, placement)
         node.params["source_rect"].set(new_rect)
-        # Pin the region's authoring reference height so its on-canvas placement
-        # is stable regardless of the clip resolution it's applied to.
-        if "reference_height" in node.params:
-            node.params["reference_height"].set(int(ref_res[1]))
+        # NOTE: reference_height is the region's own authoring reference and is
+        # preserved verbatim from the .vctpl. Overwriting it here (previously
+        # done with ref_res[1]) rescaled every placement whenever a region's
+        # stored reference_height differed from the template resolution - which
+        # is exactly what made "apply moves my stuff" happen.
 
     # restore Clip Source identity
     new_clips = graph.clip_source_nodes()

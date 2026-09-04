@@ -74,6 +74,24 @@ def test_apply_preserves_clip_and_remaps(tmp_path):
     assert warns == []                              # 16:9 -> 16:9, no banner
 
 
+def test_apply_preserves_region_reference_height(tmp_path):
+    """apply_template must NOT rewrite a region's reference_height - doing so
+    rescaled every placement on re-apply (the 'my stuff moved' bug)."""
+    g, rid = _graph_with_region()
+    g.nodes[rid].params["reference_height"].set(1440)   # authored on a 1440p clip
+    tpl = template_from_graph(g, TemplateMeta(name="T"), (2560, 1440))
+    save_template(tpl, tmp_path / "t.vctpl")
+    tpl = load_template(tmp_path / "t.vctpl")
+
+    target = Graph()
+    build_default_graph(target)
+    target.clip_source_nodes()[0].set_media_info(2560, 1440, 60.0, 90.0)
+    apply_template(target, tpl, (2560, 1440))
+
+    reg = [n for n in target.nodes.values() if n.type_name == "HUD Region"][0]
+    assert int(reg.params["reference_height"].value) == 1440
+
+
 def test_apply_ultrawide_warns(tmp_path):
     g, _ = _graph_with_region()
     save_template(template_from_graph(g, TemplateMeta(name="T"), (1920, 1080)),
