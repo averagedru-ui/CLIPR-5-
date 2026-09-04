@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 
 from vcomp.export.encoder import detect_encoders
 from vcomp.export.job import ExportJob, ExportRequest
-from vcomp.export.presets import PRESETS
+from vcomp.export.presets import PRESET_ORDER, PRESETS
 
 
 class ExportDialog(QDialog):
@@ -68,7 +68,7 @@ class ExportDialog(QDialog):
         form.addRow("Output", rw)
 
         self.cb_preset = QComboBox()
-        self.cb_preset.addItems(list(PRESETS) + ["Custom"])
+        self.cb_preset.addItems(PRESET_ORDER + ["Custom"])
         self.cb_preset.currentTextChanged.connect(self._apply_preset)
         form.addRow("Preset", self.cb_preset)
 
@@ -133,8 +133,8 @@ class ExportDialog(QDialog):
         self.buttons.rejected.connect(self._on_reject)
         lay.addWidget(self.buttons)
 
-        self.cb_preset.setCurrentText("TikTok")
-        self._apply_preset("TikTok")
+        self.cb_preset.setCurrentText(PRESET_ORDER[0])
+        self._apply_preset(PRESET_ORDER[0])
 
     def _apply_preset(self, name: str) -> None:
         if name in PRESETS:
