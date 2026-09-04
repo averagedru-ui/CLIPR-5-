@@ -83,6 +83,68 @@ def test_disabled_facecam_contributes_nothing(compositor):
     assert tuple(res[100, 100, :3]) == (0, 0, 0)
 
 
+def test_frame_aspect_forces_box_proportions():
+    from vcomp.nodes.layout import _FC_ASPECT
+
+    g = Graph()
+    clip = g.add_node("Clip Source")
+    fc = g.add_node("Facecam")
+    clip.set_media_info(1920, 1080, 30.0, 2.0)
+
+    class _Ctx:
+        canvas_w, canvas_h = 1080, 1920
+
+    # 'auto' follows the (wide) source crop -> box much wider than tall
+    g.set_param(fc.id, "source_rect", (0.0, 0.0, 0.4, 0.2))   # 2:1 * 16:9 px
+    g.set_param(fc.id, "frame_aspect", "auto")
+    g.set_param(fc.id, "size", 0.5)
+    # replicate render's dh math
+    def dh_for(aspect_key):
+        g.set_param(fc.id, "frame_aspect", aspect_key)
+        forced = _FC_ASPECT[aspect_key]
+        sw, shh = 0.4, 0.2
+        aspect = forced if forced is not None else (sw * 1920) / (shh * 1080)
+        return 0.5 * (1080 / 1920) / aspect
+
+    assert dh_for("square") > dh_for("landscape 16:9")
+    assert abs(dh_for("square") - 0.5 * (1080 / 1920)) < 1e-9   # 1:1 -> dh == dw*ca
+
+
+def test_shadow_adds_dark_pixels_below_the_cam(compositor):
+    g = Graph()
+    clip = g.add_node("Clip Source")
+    fc = g.add_node("Facecam")
+    stack = g.add_node("Stack")
+    out = g.ensure_output()
+    g.connect(clip.id, "image", fc.id, "image")
+    g.connect(fc.id, "image", stack.id, "layers")
+    g.connect(stack.id, "image", out.id, "image")
+    g.set_param(out.id, "background_clear_color", (0, 0, 0, 0))   # transparent
+    clip.set_media_info(1280, 720, 30.0, 2.0)
+    for k, v in dict(source_rect=(0.0, 0.0, 1.0, 1.0), shape="rect", feather=0.0,
+                     border_width=0.0, placement="top-center", margin=0.1, size=0.3,
+                     shadow_enabled=True, shadow_blur=6.0, shadow_offset_y=60.0,
+                     shadow_offset_x=0.0, shadow_opacity=0.9).items():
+        g.set_param(fc.id, k, v)
+
+    src = np.full((720, 1280, 3), (0, 220, 90), np.uint8)
+    cw, ch, _ = g.canvas_params()
+    ctx = EvalContext(compositor, 0.0, cw, ch, 1.0, {clip.id: src})
+    res = g.evaluate(ctx)
+    ctx.release_all()
+
+    g.set_param(fc.id, "shadow_enabled", False)
+    ctx2 = EvalContext(compositor, 0.0, cw, ch, 1.0, {clip.id: src})
+    res2 = g.evaluate(ctx2)
+    ctx2.release_all()
+
+    # shadow adds semi-opaque pixels in the halo around the cam that the
+    # no-shadow frame leaves fully transparent
+    a_on = (res[..., 3] > 8).sum()
+    a_off = (res2[..., 3] > 8).sum()
+    assert a_on > a_off * 1.15
+
+
 def test_builtins_carry_disabled_facecam():
     from vcomp.templates import builtin
 

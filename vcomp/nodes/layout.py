@@ -14,6 +14,17 @@ _FC_SHAPE = {"rect": 0, "rounded": 1, "circle": 2}
 _FC_PLACE = ("custom", "top-left", "top-right", "bottom-left", "bottom-right",
              "top-center", "bottom-center")
 
+# Forced box proportions (width : height). "auto" keeps the source crop's aspect.
+_FC_ASPECT = {
+    "auto": None,
+    "square": 1.0,
+    "portrait 4:5": 4 / 5,
+    "portrait 3:4": 3 / 4,
+    "portrait 9:16": 9 / 16,
+    "landscape 16:9": 16 / 9,
+    "landscape 4:3": 4 / 3,
+}
+
 
 @register
 class Facecam(VNode):
@@ -30,7 +41,12 @@ class Facecam(VNode):
         self.add_param(Param("source_rect", ParamType.RECT, (0.0, 0.72, 0.22, 0.28),
                              group="Source",
                              tooltip="The webcam box inside the source frame."))
-        self.add_param(Param("shape", ParamType.ENUM, "rounded", choices=tuple(_FC_SHAPE), group="Source"))
+        self.add_param(Param("shape", ParamType.ENUM, "rounded", choices=tuple(_FC_SHAPE),
+                             group="Source",
+                             tooltip="Mask outline. 'circle' + a 'square' frame = a true circle."))
+        self.add_param(Param("frame_aspect", ParamType.ENUM, "auto", choices=tuple(_FC_ASPECT),
+                             group="Source",
+                             tooltip="Force the overlay box proportions (square, vertical, wide...)."))
         self.add_param(Param("placement", ParamType.ENUM, "top-right", choices=_FC_PLACE,
                              group="Placement",
                              tooltip="Auto-snap to a spot on the 9:16; 'custom' uses dest_x/y."))
@@ -44,6 +60,16 @@ class Facecam(VNode):
         self.add_param(Param("feather", ParamType.FLOAT, 1.5, min=0, max=64, group="Style"))
         self.add_param(Param("opacity", ParamType.FLOAT, 1.0, min=0, max=1, step=0.01, group="Style"))
         self.add_param(Param("corner_radius", ParamType.FLOAT, 0.15, min=0, max=0.5, step=0.01, group="Style"))
+        self.add_param(Param("shadow_enabled", ParamType.BOOL, False, group="Shadow"))
+        self.add_param(Param("shadow_color", ParamType.COLOR, (0, 0, 0, 1), group="Shadow"))
+        self.add_param(Param("shadow_opacity", ParamType.FLOAT, 0.45, min=0, max=1, step=0.01,
+                             group="Shadow"))
+        self.add_param(Param("shadow_blur", ParamType.FLOAT, 8.0, min=0, max=48, step=0.5,
+                             group="Shadow", tooltip="Softness of the shadow edge, px."))
+        self.add_param(Param("shadow_offset_x", ParamType.FLOAT, 0.0, min=-96, max=96, step=1,
+                             group="Shadow"))
+        self.add_param(Param("shadow_offset_y", ParamType.FLOAT, 10.0, min=-96, max=96, step=1,
+                             group="Shadow"))
         self.add_output("image", WireType.IMAGE)
 
     def is_time_dependent(self) -> bool:
@@ -74,25 +100,49 @@ class Facecam(VNode):
 
         sx, sy, sw, sh = self.params["source_rect"].value
         srcrect = (sx, sy, sx + sw, sy + sh)
-        shape = _FC_SHAPE.get(self.params["shape"].value, 1)
-        gl_shape = {0: 0, 1: 1, 2: 2}[shape]
+        gl_shape = _FC_SHAPE.get(self.params["shape"].value, 1)
         size = float(self.params["size"].value)
-        aspect = (sw * src.width) / max(1e-6, sh * src.height)   # box pixel w/h
+
+        forced = _FC_ASPECT.get(self.params["frame_aspect"].value, None)
+        aspect = forced if forced is not None else \
+            (sw * src.width) / max(1e-6, sh * src.height)   # box pixel w/h
         dw = size
         dh = size * (ctx.canvas_w / ctx.canvas_h) / max(1e-6, aspect)
 
         cx, cy = self.dest_center(dw, dh)
         dest = (cx - dw / 2, cy - dh / 2, cx + dw / 2, cy + dh / 2)
+        cw = ctx.canvas_w
 
+        cam = ctx.acquire_fbo()
         ctx.compositor.region(
-            f, src, dest=dest, srcrect=srcrect, shape=gl_shape,
+            cam, src, dest=dest, srcrect=srcrect, shape=gl_shape,
             radii=(self.params["corner_radius"].value,) * 4,
-            feather=float(self.params["feather"].value) / ctx.canvas_w,
+            feather=float(self.params["feather"].value) / cw,
             expand=0.0, rotation=0.0, opacity=float(self.params["opacity"].value),
-            outline_w=float(self.params["border_width"].value) / ctx.canvas_w,
+            outline_w=float(self.params["border_width"].value) / cw,
             outline_color=tuple(self.params["border_color"].value),
         )
-        return {"image": f.color_attachments[0]}
+
+        if not self.params["shadow_enabled"].value:
+            return {"image": cam.color_attachments[0]}
+
+        comp = ctx.compositor
+        sh_fbo = ctx.acquire_fbo()
+        comp.shadow(
+            sh_fbo, cam.color_attachments[0],
+            offset=(float(self.params["shadow_offset_x"].value) / cw,
+                    float(self.params["shadow_offset_y"].value) / cw),
+            color=tuple(self.params["shadow_color"].value),
+            opacity=float(self.params["shadow_opacity"].value))
+        sb = float(self.params["shadow_blur"].value)
+        if sb > 0:
+            tmp = ctx.acquire_fbo()
+            blr = ctx.acquire_fbo()
+            comp.gaussian_blur(sh_fbo.color_attachments[0], sb, ctx.cw, ctx.ch, blr, tmp)
+            sh_fbo = blr
+        merged = ctx.acquire_fbo()
+        comp.compose(merged, sh_fbo.color_attachments[0], cam.color_attachments[0])
+        return {"image": merged.color_attachments[0]}
 
 
 @register
