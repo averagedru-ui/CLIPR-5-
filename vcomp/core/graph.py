@@ -73,7 +73,7 @@ class EvalContext:
         self._fbos.clear()
         for tex in self._textures:
             try:
-                tex.release()
+                self.compositor.ctx.release_texture(tex)
             except Exception:  # noqa: BLE001
                 pass
         self._textures.clear()

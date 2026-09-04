@@ -40,6 +40,10 @@ class RenderContext:
 
         self._free: dict[tuple[int, int], list[moderngl.Framebuffer]] = {}
         self._in_use: set[int] = set()
+        # source-frame textures are re-uploaded every frame - pool + rewrite
+        # instead of realloc, and never build mipmaps (nothing samples them)
+        self._tex_free: dict[tuple[int, int, int], list[moderngl.Texture]] = {}
+        self._tex_in_use: dict[int, moderngl.Texture] = {}
         self._programs: dict[tuple[str, str], moderngl.Program] = {}
         self._empty_vao = self.ctx.vertex_array(self._noop_prog(), [])
 
@@ -110,22 +114,35 @@ class RenderContext:
 
     # ------------------------------------------------------------ textures
     def texture_from_array(self, arr: np.ndarray) -> moderngl.Texture:
-        """Upload an ``(H, W, 3|4)`` uint8 array as an RGBA8 texture (top row
-        first). Alpha defaults to opaque for RGB input."""
+        """Upload an ``(H, W, 3|4)`` uint8 array as a GL texture (top row first).
+
+        Pooled + rewritten in place; a 3-channel source stays 3-channel (GLSL
+        reads ``.a`` as 1.0). No mipmaps - the sample/region shaders filter
+        LINEAR only, and the earlier ``build_mipmaps`` call was ~15ms/frame of
+        pure waste on a 1440p source frame.
+        """
         if arr.dtype != np.uint8:
             arr = np.clip(arr, 0, 255).astype(np.uint8)
-        h, w, c = arr.shape
-        if c == 3:
-            rgba = np.empty((h, w, 4), np.uint8)
-            rgba[..., :3] = arr
-            rgba[..., 3] = 255
-            arr = rgba
         arr = np.ascontiguousarray(arr)
-        tex = self.ctx.texture((w, h), 4, arr.tobytes())
-        tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
-        tex.repeat_x = tex.repeat_y = False
-        tex.build_mipmaps()
+        h, w, c = arr.shape
+        c = 4 if c >= 4 else 3
+
+        key = (w, h, c)
+        pool = self._tex_free.setdefault(key, [])
+        tex = pool.pop() if pool else None
+        if tex is None:
+            tex = self.ctx.texture((w, h), c, dtype="f1")
+            tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
+            tex.repeat_x = tex.repeat_y = False
+        tex.write(arr)
+        self._tex_in_use[id(tex)] = tex
         return tex
+
+    def release_texture(self, tex: moderngl.Texture) -> None:
+        if self._tex_in_use.pop(id(tex), None) is None:
+            return
+        key = (tex.width, tex.height, tex.components)
+        self._tex_free.setdefault(key, []).append(tex)
 
     def release(self) -> None:
         for pool in self._free.values():
@@ -134,6 +151,13 @@ class RenderContext:
                     a.release()
                 fbo.release()
         self._free.clear()
+        for pool in self._tex_free.values():
+            for t in pool:
+                t.release()
+        self._tex_free.clear()
+        for t in list(self._tex_in_use.values()):
+            t.release()
+        self._tex_in_use.clear()
         for prog in self._programs.values():
             prog.release()
         self._programs.clear()

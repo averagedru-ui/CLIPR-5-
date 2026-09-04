@@ -326,7 +326,7 @@ class Compositor:
             return result
         finally:
             if src_tex is not None:
-                src_tex.release()
+                self.ctx.release_texture(src_tex)
             self.ctx.release_fbo(bg)
             self.ctx.release_fbo(front)
 
