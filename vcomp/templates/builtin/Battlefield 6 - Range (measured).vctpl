@@ -1,0 +1,1293 @@
+{
+  "format": "vctpl",
+  "version": 1,
+  "meta": {
+    "name": "Battlefield 6 - Range (measured)",
+    "game": "Battlefield 6",
+    "author": "local",
+    "created": "2026-09-04T01:57:23.797255+00:00",
+    "tags": [
+      "fps",
+      "battlefield",
+      "bf6",
+      "1080p"
+    ],
+    "notes": "Regions traced from a real 1920x1080 BF6 frame (minimap BL, ammo BR, weapon-select, right-edge gadgets). Killfeed is a standard-position guess - nudge it once you have a frame with a kill.",
+    "thumbnail": ""
+  },
+  "reference_resolution": {
+    "width": 1920,
+    "height": 1080
+  },
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "Clip Source_1",
+        "type": "Clip Source",
+        "title": "Clip Source",
+        "enabled": true,
+        "params": {
+          "file_path": {
+            "value": "",
+            "keyframes": []
+          },
+          "in_point": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "out_point": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "speed": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "loop": {
+            "value": false,
+            "keyframes": []
+          },
+          "stabilize_timebase": {
+            "value": true,
+            "keyframes": []
+          },
+          "orientation": {
+            "value": "none",
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "Main Framing_2",
+        "type": "Main Framing",
+        "title": "Main Framing",
+        "enabled": true,
+        "params": {
+          "source_rect": {
+            "value": [
+              0.0,
+              0.0,
+              1.0,
+              1.0
+            ],
+            "keyframes": []
+          },
+          "fit_mode": {
+            "value": "fit_width",
+            "keyframes": []
+          },
+          "dest_position": {
+            "value": [
+              0.5,
+              0.5
+            ],
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "skew_x": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "skew_y": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "pan_x": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "pan_y": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "corner_radius": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "border_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "border_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "Blur Background_3",
+        "type": "Blur Background",
+        "title": "Blur Background",
+        "enabled": true,
+        "params": {
+          "fit": {
+            "value": "cover",
+            "keyframes": []
+          },
+          "zoom": {
+            "value": 1.1,
+            "keyframes": []
+          },
+          "blur_radius": {
+            "value": 80.0,
+            "keyframes": []
+          },
+          "blur_quality": {
+            "value": "high",
+            "keyframes": []
+          },
+          "downsample_factor": {
+            "value": 4,
+            "keyframes": []
+          },
+          "brightness": {
+            "value": 0.9,
+            "keyframes": []
+          },
+          "saturation": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "contrast": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "tint_color": {
+            "value": [
+              0.2,
+              0.3,
+              0.5,
+              1
+            ],
+            "keyframes": []
+          },
+          "tint_amount": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "overlay_color": {
+            "value": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "keyframes": []
+          },
+          "overlay_opacity": {
+            "value": 0.25,
+            "keyframes": []
+          },
+          "vignette_amount": {
+            "value": 0.25,
+            "keyframes": []
+          },
+          "vignette_softness": {
+            "value": 0.3,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "Stack_4",
+        "type": "Stack",
+        "title": "Stack",
+        "enabled": true,
+        "params": {
+          "opacities": {
+            "value": "",
+            "keyframes": []
+          },
+          "blends": {
+            "value": "",
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "Output_5",
+        "type": "Output",
+        "title": "Output",
+        "enabled": true,
+        "params": {
+          "canvas_width": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "canvas_height": {
+            "value": 1920,
+            "keyframes": []
+          },
+          "fps": {
+            "value": "30",
+            "keyframes": []
+          },
+          "background_clear_color": {
+            "value": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "keyframes": []
+          },
+          "render_scale": {
+            "value": 2.0,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "HUD Region_6",
+        "type": "HUD Region",
+        "title": "Minimap",
+        "enabled": true,
+        "params": {
+          "label": {
+            "value": "Minimap",
+            "keyframes": []
+          },
+          "shape": {
+            "value": "rounded_rect",
+            "keyframes": []
+          },
+          "source_rect": {
+            "value": [
+              0.017,
+              0.752,
+              0.14,
+              0.193
+            ],
+            "keyframes": []
+          },
+          "corner_radii": {
+            "value": [
+              0.1,
+              0.1,
+              0.1,
+              0.1
+            ],
+            "keyframes": []
+          },
+          "polygon_points": {
+            "value": "",
+            "keyframes": []
+          },
+          "anchor": {
+            "value": "bottom-left",
+            "keyframes": []
+          },
+          "size_mode": {
+            "value": "relative",
+            "keyframes": []
+          },
+          "reference_height": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "ultrawide_policy": {
+            "value": "pin_to_edge",
+            "keyframes": []
+          },
+          "dest_x": {
+            "value": 0.165,
+            "keyframes": []
+          },
+          "dest_y": {
+            "value": 0.088,
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.45,
+            "keyframes": []
+          },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "link_scale": {
+            "value": true,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "dest_anchor": {
+            "value": "center",
+            "keyframes": []
+          },
+          "flip_h": {
+            "value": false,
+            "keyframes": []
+          },
+          "flip_v": {
+            "value": false,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 1.5,
+            "keyframes": []
+          },
+          "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_left": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_right": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_top": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_bottom": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "opacity": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "blend_mode": {
+            "value": "normal",
+            "keyframes": []
+          },
+          "plate_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "plate_color": {
+            "value": [
+              0,
+              0,
+              0,
+              0.55
+            ],
+            "keyframes": []
+          },
+          "plate_padding": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "plate_radius": {
+            "value": 0.15,
+            "keyframes": []
+          },
+          "plate_blur": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 6.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "solo": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "HUD Region_7",
+        "type": "HUD Region",
+        "title": "Ammo",
+        "enabled": true,
+        "params": {
+          "label": {
+            "value": "Ammo",
+            "keyframes": []
+          },
+          "shape": {
+            "value": "rect",
+            "keyframes": []
+          },
+          "source_rect": {
+            "value": [
+              0.806,
+              0.851,
+              0.19,
+              0.147
+            ],
+            "keyframes": []
+          },
+          "corner_radii": {
+            "value": [
+              0.1,
+              0.1,
+              0.1,
+              0.1
+            ],
+            "keyframes": []
+          },
+          "polygon_points": {
+            "value": "",
+            "keyframes": []
+          },
+          "anchor": {
+            "value": "bottom-right",
+            "keyframes": []
+          },
+          "size_mode": {
+            "value": "relative",
+            "keyframes": []
+          },
+          "reference_height": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "ultrawide_policy": {
+            "value": "pin_to_edge",
+            "keyframes": []
+          },
+          "dest_x": {
+            "value": 0.795,
+            "keyframes": []
+          },
+          "dest_y": {
+            "value": 0.93,
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.3,
+            "keyframes": []
+          },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "link_scale": {
+            "value": true,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "dest_anchor": {
+            "value": "center",
+            "keyframes": []
+          },
+          "flip_h": {
+            "value": false,
+            "keyframes": []
+          },
+          "flip_v": {
+            "value": false,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 1.5,
+            "keyframes": []
+          },
+          "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_left": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_right": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_top": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_bottom": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "opacity": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "blend_mode": {
+            "value": "normal",
+            "keyframes": []
+          },
+          "plate_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "plate_color": {
+            "value": [
+              0,
+              0,
+              0,
+              0.55
+            ],
+            "keyframes": []
+          },
+          "plate_padding": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "plate_radius": {
+            "value": 0.15,
+            "keyframes": []
+          },
+          "plate_blur": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 6.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "solo": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "HUD Region_8",
+        "type": "HUD Region",
+        "title": "Weapon Select",
+        "enabled": true,
+        "params": {
+          "label": {
+            "value": "Weapon Select",
+            "keyframes": []
+          },
+          "shape": {
+            "value": "rect",
+            "keyframes": []
+          },
+          "source_rect": {
+            "value": [
+              0.626,
+              0.872,
+              0.17,
+              0.078
+            ],
+            "keyframes": []
+          },
+          "corner_radii": {
+            "value": [
+              0.1,
+              0.1,
+              0.1,
+              0.1
+            ],
+            "keyframes": []
+          },
+          "polygon_points": {
+            "value": "",
+            "keyframes": []
+          },
+          "anchor": {
+            "value": "bottom-center",
+            "keyframes": []
+          },
+          "size_mode": {
+            "value": "relative",
+            "keyframes": []
+          },
+          "reference_height": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "ultrawide_policy": {
+            "value": "pin_to_edge",
+            "keyframes": []
+          },
+          "dest_x": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "dest_y": {
+            "value": 0.7,
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.15,
+            "keyframes": []
+          },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "link_scale": {
+            "value": true,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "dest_anchor": {
+            "value": "center",
+            "keyframes": []
+          },
+          "flip_h": {
+            "value": false,
+            "keyframes": []
+          },
+          "flip_v": {
+            "value": false,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 1.5,
+            "keyframes": []
+          },
+          "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_left": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_right": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_top": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_bottom": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "opacity": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "blend_mode": {
+            "value": "normal",
+            "keyframes": []
+          },
+          "plate_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "plate_color": {
+            "value": [
+              0,
+              0,
+              0,
+              0.55
+            ],
+            "keyframes": []
+          },
+          "plate_padding": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "plate_radius": {
+            "value": 0.15,
+            "keyframes": []
+          },
+          "plate_blur": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 6.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "solo": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "HUD Region_9",
+        "type": "HUD Region",
+        "title": "Gadgets",
+        "enabled": true,
+        "params": {
+          "label": {
+            "value": "Gadgets",
+            "keyframes": []
+          },
+          "shape": {
+            "value": "rect",
+            "keyframes": []
+          },
+          "source_rect": {
+            "value": [
+              0.949,
+              0.576,
+              0.051,
+              0.208
+            ],
+            "keyframes": []
+          },
+          "corner_radii": {
+            "value": [
+              0.1,
+              0.1,
+              0.1,
+              0.1
+            ],
+            "keyframes": []
+          },
+          "polygon_points": {
+            "value": "",
+            "keyframes": []
+          },
+          "anchor": {
+            "value": "top-right",
+            "keyframes": []
+          },
+          "size_mode": {
+            "value": "relative",
+            "keyframes": []
+          },
+          "reference_height": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "ultrawide_policy": {
+            "value": "pin_to_edge",
+            "keyframes": []
+          },
+          "dest_x": {
+            "value": 0.915,
+            "keyframes": []
+          },
+          "dest_y": {
+            "value": 0.42,
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.1,
+            "keyframes": []
+          },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "link_scale": {
+            "value": true,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "dest_anchor": {
+            "value": "center",
+            "keyframes": []
+          },
+          "flip_h": {
+            "value": false,
+            "keyframes": []
+          },
+          "flip_v": {
+            "value": false,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 1.5,
+            "keyframes": []
+          },
+          "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_left": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_right": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_top": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_bottom": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "opacity": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "blend_mode": {
+            "value": "normal",
+            "keyframes": []
+          },
+          "plate_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "plate_color": {
+            "value": [
+              0,
+              0,
+              0,
+              0.55
+            ],
+            "keyframes": []
+          },
+          "plate_padding": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "plate_radius": {
+            "value": 0.15,
+            "keyframes": []
+          },
+          "plate_blur": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 6.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "solo": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      },
+      {
+        "id": "HUD Region_10",
+        "type": "HUD Region",
+        "title": "Killfeed",
+        "enabled": true,
+        "params": {
+          "label": {
+            "value": "Killfeed",
+            "keyframes": []
+          },
+          "shape": {
+            "value": "rect",
+            "keyframes": []
+          },
+          "source_rect": {
+            "value": [
+              0.62,
+              0.045,
+              0.372,
+              0.16
+            ],
+            "keyframes": []
+          },
+          "corner_radii": {
+            "value": [
+              0.1,
+              0.1,
+              0.1,
+              0.1
+            ],
+            "keyframes": []
+          },
+          "polygon_points": {
+            "value": "",
+            "keyframes": []
+          },
+          "anchor": {
+            "value": "top-right",
+            "keyframes": []
+          },
+          "size_mode": {
+            "value": "relative",
+            "keyframes": []
+          },
+          "reference_height": {
+            "value": 1080,
+            "keyframes": []
+          },
+          "ultrawide_policy": {
+            "value": "pin_to_edge",
+            "keyframes": []
+          },
+          "dest_x": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "dest_y": {
+            "value": 0.205,
+            "keyframes": []
+          },
+          "dest_scale": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_x": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "dest_scale_y": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "link_scale": {
+            "value": true,
+            "keyframes": []
+          },
+          "rotation": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "dest_anchor": {
+            "value": "center",
+            "keyframes": []
+          },
+          "flip_h": {
+            "value": false,
+            "keyframes": []
+          },
+          "flip_v": {
+            "value": false,
+            "keyframes": []
+          },
+          "feather": {
+            "value": 1.5,
+            "keyframes": []
+          },
+          "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_left": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_right": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_top": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_bottom": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "opacity": {
+            "value": 1.0,
+            "keyframes": []
+          },
+          "blend_mode": {
+            "value": "normal",
+            "keyframes": []
+          },
+          "plate_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "plate_color": {
+            "value": [
+              0,
+              0,
+              0,
+              0.55
+            ],
+            "keyframes": []
+          },
+          "plate_padding": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "plate_radius": {
+            "value": 0.15,
+            "keyframes": []
+          },
+          "plate_blur": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_width": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "outline_color": {
+            "value": [
+              1,
+              1,
+              1,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 6.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.5,
+            "keyframes": []
+          },
+          "solo": {
+            "value": false,
+            "keyframes": []
+          }
+        }
+      }
+    ],
+    "connections": [
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "Main Framing_2",
+        "to_port": "image"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "Blur Background_3",
+        "to_port": "image"
+      },
+      {
+        "from_node": "Blur Background_3",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Main Framing_2",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Stack_4",
+        "from_port": "image",
+        "to_node": "Output_5",
+        "to_port": "image"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "audio",
+        "to_node": "Output_5",
+        "to_port": "audio"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "HUD Region_6",
+        "to_port": "image"
+      },
+      {
+        "from_node": "HUD Region_6",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "HUD Region_7",
+        "to_port": "image"
+      },
+      {
+        "from_node": "HUD Region_7",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "HUD Region_8",
+        "to_port": "image"
+      },
+      {
+        "from_node": "HUD Region_8",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "HUD Region_9",
+        "to_port": "image"
+      },
+      {
+        "from_node": "HUD Region_9",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      },
+      {
+        "from_node": "Clip Source_1",
+        "from_port": "image",
+        "to_node": "HUD Region_10",
+        "to_port": "image"
+      },
+      {
+        "from_node": "HUD Region_10",
+        "from_port": "image",
+        "to_node": "Stack_4",
+        "to_port": "layers"
+      }
+    ]
+  }
+}

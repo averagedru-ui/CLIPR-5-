@@ -97,6 +97,23 @@ def test_build_all_templates_valid():
         assert g.clip_source_nodes()
 
 
+def test_bundled_vctpl_files_load():
+    """Every shipped .vctpl (hand-authored ones included) must deserialize."""
+    from pathlib import Path
+
+    d = Path(__file__).resolve().parents[1] / "vcomp" / "templates" / "builtin"
+    files = list(d.glob("*.vctpl"))
+    assert files
+    for f in files:
+        tpl = load_template(f)
+        g = Graph()
+        g.load_dict(tpl.graph)
+        assert g.output_node() is not None
+        assert g.clip_source_nodes()
+        w, h = tpl.reference_resolution
+        assert w > 0 and h > 0
+
+
 def test_install_builtins(tmp_path):
     n = builtin.install_builtins(tmp_path)
     assert n >= 10
