@@ -5,7 +5,7 @@
     "name": "Blur Background + Centered Gameplay",
     "game": "",
     "author": "local",
-    "created": "2026-09-01T20:09:57.758933+00:00",
+    "created": "2026-09-04T04:16:54.885980+00:00",
     "tags": [
       "minimal"
     ],
@@ -159,11 +159,11 @@
             "keyframes": []
           },
           "blur_radius": {
-            "value": 60.0,
+            "value": 80.0,
             "keyframes": []
           },
           "blur_quality": {
-            "value": "fast",
+            "value": "high",
             "keyframes": []
           },
           "downsample_factor": {
@@ -283,7 +283,11 @@
             "keyframes": []
           },
           "shape": {
-            "value": "rounded",
+            "value": "rect",
+            "keyframes": []
+          },
+          "frame_aspect": {
+            "value": "auto",
             "keyframes": []
           },
           "placement": {
@@ -307,7 +311,7 @@
             "keyframes": []
           },
           "border_width": {
-            "value": 3.0,
+            "value": 0.0,
             "keyframes": []
           },
           "border_color": {
@@ -320,7 +324,7 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "opacity": {
@@ -329,6 +333,35 @@
           },
           "corner_radius": {
             "value": 0.15,
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_color": {
+            "value": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.45,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_offset_x": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 10.0,
             "keyframes": []
           }
         }

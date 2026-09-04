@@ -39,7 +39,7 @@ def _add_region(g: Graph, clip_id: str, stack_id: str, *, label: str,
     g.set_param(r.id, "dest_x", dest_x)
     g.set_param(r.id, "dest_y", dest_y)
     g.set_param(r.id, "dest_scale", scale)
-    g.set_param(r.id, "feather", 1.5)
+    g.set_param(r.id, "feather", 0.0)
     g.connect(clip_id, "image", r.id, "image")
     g.connect(r.id, "image", stack_id, "layers")
 

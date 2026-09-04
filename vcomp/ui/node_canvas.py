@@ -287,7 +287,7 @@ class NodeCanvas(QObject):
         for nid, d in sorted(depth.items(), key=lambda kv: (kv[1], nodes[kv[0]].category)):
             cols.setdefault(d, []).append(nid)
 
-        dx, dy = 320, 170
+        dx, dy = 340, 250   # roomy enough that preview-thumbnail nodes don't overlap
         pos: dict[str, tuple[float, float]] = {}
         for d, ids in cols.items():
             for row, nid in enumerate(ids):
@@ -338,6 +338,9 @@ class NodeCanvas(QObject):
                 v._text_item.setFont(title_f)
                 for _p, t in list(v._input_items.items()) + list(v._output_items.items()):
                     t.setFont(port_f)
+                # keep embedded widgets (the preview thumbnail) visible when the
+                # canvas is zoomed out - NodeGraphQt hides them below 70px wide
+                v._proxy_mode_threshold = 1
                 v.draw_node()
             except Exception:  # noqa: BLE001
                 log.exception("restyle node fonts")

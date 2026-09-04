@@ -41,7 +41,7 @@ class Facecam(VNode):
         self.add_param(Param("source_rect", ParamType.RECT, (0.0, 0.72, 0.22, 0.28),
                              group="Source",
                              tooltip="The webcam box inside the source frame."))
-        self.add_param(Param("shape", ParamType.ENUM, "rounded", choices=tuple(_FC_SHAPE),
+        self.add_param(Param("shape", ParamType.ENUM, "rect", choices=tuple(_FC_SHAPE),
                              group="Source",
                              tooltip="Mask outline. 'circle' + a 'square' frame = a true circle."))
         self.add_param(Param("frame_aspect", ParamType.ENUM, "auto", choices=tuple(_FC_ASPECT),
@@ -55,9 +55,9 @@ class Facecam(VNode):
         self.add_param(Param("dest_x", ParamType.FLOAT, 0.82, min=-0.5, max=1.5, step=0.005, group="Placement"))
         self.add_param(Param("dest_y", ParamType.FLOAT, 0.12, min=-0.5, max=1.5, step=0.005, group="Placement"))
         self.add_param(Param("size", ParamType.FLOAT, 0.34, min=0.02, max=1.0, step=0.01, group="Placement"))
-        self.add_param(Param("border_width", ParamType.FLOAT, 3.0, min=0, max=40, group="Style"))
+        self.add_param(Param("border_width", ParamType.FLOAT, 0.0, min=0, max=40, group="Style"))
         self.add_param(Param("border_color", ParamType.COLOR, (1, 1, 1, 1), group="Style"))
-        self.add_param(Param("feather", ParamType.FLOAT, 1.5, min=0, max=64, group="Style"))
+        self.add_param(Param("feather", ParamType.FLOAT, 0.0, min=0, max=64, group="Style"))
         self.add_param(Param("opacity", ParamType.FLOAT, 1.0, min=0, max=1, step=0.01, group="Style"))
         self.add_param(Param("corner_radius", ParamType.FLOAT, 0.15, min=0, max=0.5, step=0.01, group="Style"))
         self.add_param(Param("shadow_enabled", ParamType.BOOL, False, group="Shadow"))

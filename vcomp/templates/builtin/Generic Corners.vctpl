@@ -5,7 +5,7 @@
     "name": "Generic Corners",
     "game": "",
     "author": "local",
-    "created": "2026-09-01T20:09:57.755192+00:00",
+    "created": "2026-09-04T04:16:54.882334+00:00",
     "tags": [
       "generic"
     ],
@@ -159,11 +159,11 @@
             "keyframes": []
           },
           "blur_radius": {
-            "value": 60.0,
+            "value": 80.0,
             "keyframes": []
           },
           "blur_quality": {
-            "value": "fast",
+            "value": "high",
             "keyframes": []
           },
           "downsample_factor": {
@@ -292,10 +292,10 @@
           },
           "corner_radii": {
             "value": [
-              0.1,
-              0.1,
-              0.1,
-              0.1
+              0.0,
+              0.0,
+              0.0,
+              0.0
             ],
             "keyframes": []
           },
@@ -360,10 +360,26 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_left": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_right": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_top": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_bottom": {
             "value": 0.0,
             "keyframes": []
           },
@@ -460,10 +476,10 @@
           },
           "corner_radii": {
             "value": [
-              0.1,
-              0.1,
-              0.1,
-              0.1
+              0.0,
+              0.0,
+              0.0,
+              0.0
             ],
             "keyframes": []
           },
@@ -528,10 +544,26 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_left": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_right": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_top": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_bottom": {
             "value": 0.0,
             "keyframes": []
           },
@@ -628,10 +660,10 @@
           },
           "corner_radii": {
             "value": [
-              0.1,
-              0.1,
-              0.1,
-              0.1
+              0.0,
+              0.0,
+              0.0,
+              0.0
             ],
             "keyframes": []
           },
@@ -696,10 +728,26 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_left": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_right": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_top": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_bottom": {
             "value": 0.0,
             "keyframes": []
           },
@@ -796,10 +844,10 @@
           },
           "corner_radii": {
             "value": [
-              0.1,
-              0.1,
-              0.1,
-              0.1
+              0.0,
+              0.0,
+              0.0,
+              0.0
             ],
             "keyframes": []
           },
@@ -864,10 +912,26 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "mask_expand": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_left": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_right": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_top": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "crop_bottom": {
             "value": 0.0,
             "keyframes": []
           },
@@ -955,7 +1019,11 @@
             "keyframes": []
           },
           "shape": {
-            "value": "rounded",
+            "value": "rect",
+            "keyframes": []
+          },
+          "frame_aspect": {
+            "value": "auto",
             "keyframes": []
           },
           "placement": {
@@ -979,7 +1047,7 @@
             "keyframes": []
           },
           "border_width": {
-            "value": 3.0,
+            "value": 0.0,
             "keyframes": []
           },
           "border_color": {
@@ -992,7 +1060,7 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "opacity": {
@@ -1001,6 +1069,35 @@
           },
           "corner_radius": {
             "value": 0.15,
+            "keyframes": []
+          },
+          "shadow_enabled": {
+            "value": false,
+            "keyframes": []
+          },
+          "shadow_color": {
+            "value": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "keyframes": []
+          },
+          "shadow_opacity": {
+            "value": 0.45,
+            "keyframes": []
+          },
+          "shadow_blur": {
+            "value": 8.0,
+            "keyframes": []
+          },
+          "shadow_offset_x": {
+            "value": 0.0,
+            "keyframes": []
+          },
+          "shadow_offset_y": {
+            "value": 10.0,
             "keyframes": []
           }
         }

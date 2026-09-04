@@ -5,7 +5,7 @@
     "name": "Battlefield 6 - Range (measured)",
     "game": "Battlefield 6",
     "author": "local",
-    "created": "2026-09-04T02:42:48.297321+00:00",
+    "created": "2026-09-04T04:16:55.084625+00:00",
     "tags": [
       "fps",
       "battlefield",
@@ -295,10 +295,10 @@
           },
           "corner_radii": {
             "value": [
-              0.1,
-              0.1,
-              0.1,
-              0.1
+              0.0,
+              0.0,
+              0.0,
+              0.0
             ],
             "keyframes": []
           },
@@ -363,7 +363,7 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "mask_expand": {
@@ -479,10 +479,10 @@
           },
           "corner_radii": {
             "value": [
-              0.1,
-              0.1,
-              0.1,
-              0.1
+              0.0,
+              0.0,
+              0.0,
+              0.0
             ],
             "keyframes": []
           },
@@ -547,7 +547,7 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "mask_expand": {
@@ -663,10 +663,10 @@
           },
           "corner_radii": {
             "value": [
-              0.1,
-              0.1,
-              0.1,
-              0.1
+              0.0,
+              0.0,
+              0.0,
+              0.0
             ],
             "keyframes": []
           },
@@ -731,7 +731,7 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "mask_expand": {
@@ -847,10 +847,10 @@
           },
           "corner_radii": {
             "value": [
-              0.1,
-              0.1,
-              0.1,
-              0.1
+              0.0,
+              0.0,
+              0.0,
+              0.0
             ],
             "keyframes": []
           },
@@ -915,7 +915,7 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "mask_expand": {
@@ -1031,10 +1031,10 @@
           },
           "corner_radii": {
             "value": [
-              0.1,
-              0.1,
-              0.1,
-              0.1
+              0.0,
+              0.0,
+              0.0,
+              0.0
             ],
             "keyframes": []
           },
@@ -1099,7 +1099,7 @@
             "keyframes": []
           },
           "feather": {
-            "value": 1.5,
+            "value": 0.0,
             "keyframes": []
           },
           "mask_expand": {

@@ -84,7 +84,7 @@ class HUDRegion(VNode):
         self.add_param(Param("shape", ParamType.ENUM, "rect", choices=_SHAPES, group="Source"))
         self.add_param(Param("source_rect", ParamType.RECT, (0.0, 0.0, 0.2, 0.2),
                              group="Source", tooltip="Sub-rect of the source frame."))
-        self.add_param(Param("corner_radii", ParamType.RECT, (0.1, 0.1, 0.1, 0.1),
+        self.add_param(Param("corner_radii", ParamType.RECT, (0.0, 0.0, 0.0, 0.0),
                              group="Source", tooltip="Per-corner radius (rounded_rect)."))
         self.add_param(Param("polygon_points", ParamType.STR, "",
                              group="Source", tooltip="x,y;x,y;... in 0..1 quad space."))
@@ -113,8 +113,8 @@ class HUDRegion(VNode):
         self.add_param(Param("flip_v", ParamType.BOOL, False, group="Placement"))
 
         # Edge
-        self.add_param(Param("feather", ParamType.FLOAT, 1.5, min=0.0, max=128.0, step=0.5,
-                             group="Edge", tooltip="Edge softness in canvas px."))
+        self.add_param(Param("feather", ParamType.FLOAT, 0.0, min=0.0, max=128.0, step=0.5,
+                             group="Edge", tooltip="Edge softness in canvas px (0 = hard edge)."))
         self.add_param(Param("mask_expand", ParamType.FLOAT, 0.0, min=-64.0, max=64.0, step=0.5,
                              group="Edge", tooltip="Dilate (+) / erode (-) the mask, px."))
         self.add_param(Param("crop_left", ParamType.FLOAT, 0.0, min=0.0, max=0.49, step=0.005,
