@@ -9,6 +9,7 @@ import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -46,7 +47,13 @@ def _thumb_b64(arr: np.ndarray | None) -> str:
     return base64.b64encode(bytes(ba)).decode("ascii")
 
 
+_NEW_TEMPLATE = "New template..."
+
+
 class SaveTemplateDialog(QDialog):
+    """Save the current graph as a template - either a new file, or picked
+    from the 'Overwrite' dropdown to save back over an existing one."""
+
     def __init__(self, parent, graph, reference_resolution, thumb: np.ndarray | None):
         super().__init__(parent)
         self.setWindowTitle("Save as Template")
@@ -54,8 +61,18 @@ class SaveTemplateDialog(QDialog):
         self._ref = reference_resolution
         self._thumb = thumb
         self.saved_path: Path | None = None
+        self._existing: dict[str, Path] = {
+            p.stem: p for p in sorted(paths.templates_dir().glob("*.vctpl"))
+        }
 
         lay = QVBoxLayout(self)
+        lay.addWidget(QLabel("Overwrite"))
+        self.cb_target = QComboBox()
+        self.cb_target.addItem(_NEW_TEMPLATE)
+        self.cb_target.addItems(list(self._existing))
+        self.cb_target.currentTextChanged.connect(self._on_target_changed)
+        lay.addWidget(self.cb_target)
+
         self.ed_name = QLineEdit("My Template")
         self.ed_game = QLineEdit()
         self.ed_tags = QLineEdit()
@@ -71,6 +88,21 @@ class SaveTemplateDialog(QDialog):
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)
 
+    def _on_target_changed(self, name: str) -> None:
+        if name == _NEW_TEMPLATE:
+            return
+        path = self._existing.get(name)
+        if not path:
+            return
+        try:
+            tpl = load_template(path)
+        except (ValueError, OSError):
+            return
+        self.ed_name.setText(tpl.meta.name)
+        self.ed_game.setText(tpl.meta.game)
+        self.ed_tags.setText(", ".join(tpl.meta.tags))
+        self.ed_notes.setPlainText(tpl.meta.notes)
+
     def _save(self) -> None:
         meta = TemplateMeta(
             name=self.ed_name.text().strip() or "Untitled",
@@ -80,8 +112,22 @@ class SaveTemplateDialog(QDialog):
             thumbnail_b64=_thumb_b64(self._thumb),
         )
         tpl = template_from_graph(self._graph, meta, self._ref)
+
+        target = self.cb_target.currentText()
+        if target != _NEW_TEMPLATE and target in self._existing:
+            # explicit overwrite of the picked template's own file
+            self.saved_path = save_template(tpl, self._existing[target])
+            self.accept()
+            return
+
         safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in meta.name)
-        self.saved_path = save_template(tpl, paths.templates_dir() / f"{safe}.vctpl")
+        dest = paths.templates_dir() / f"{safe}.vctpl"
+        if dest.exists() and QMessageBox.question(
+                self, "Save as Template",
+                f"'{safe}.vctpl' already exists. Overwrite it?",
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        self.saved_path = save_template(tpl, dest)
         self.accept()
 
 

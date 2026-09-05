@@ -7,6 +7,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from vcomp.ui.main_window import MainWindow
+from vcomp.ui.splash import SplashScreen
 from vcomp.ui.theme import apply_theme
 from vcomp.util import logging as vlog
 from vcomp.util.settings import Settings
@@ -21,11 +22,21 @@ def run() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("CLIPR")
     app.setOrganizationName("CLIPR")
-
-    settings = Settings()
     apply_theme(app)
 
-    win = MainWindow(settings)
+    splash = SplashScreen()
+    splash.show()
+    app.processEvents()
+
+    settings = Settings()
+    win = MainWindow(settings)   # heavy init happens here, splash stays on screen
+
+    def _reveal() -> None:
+        win.show()
+        splash.close()
+
+    splash.finished.connect(_reveal)
+    splash.start()
 
     def emergency_save() -> None:
         settings.save()
@@ -41,5 +52,4 @@ def run() -> int:
     vlog.register_emergency_save(emergency_save)
     vlog.install_excepthook()
 
-    win.show()
     return app.exec()
