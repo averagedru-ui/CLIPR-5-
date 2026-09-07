@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -314,6 +314,114 @@ class PropertiesPanel(QWidget):
         for s in spins:
             s.valueChanged.connect(lambda *_: emit())
         return row
+
+
+class NodeInspectorOverlay(QWidget):
+    """The node inspector as a floating card anchored to the selected node
+    inside the node-graph viewport - replaces the docked Properties panel."""
+
+    def __init__(self, graph, undo_stack, canvas) -> None:
+        super().__init__(canvas.viewport_widget())
+        self._canvas = canvas
+        self._cid: str | None = None
+        self._drag_from: QPoint | None = None
+        self._pinned_pos: QPoint | None = None
+
+        self.setObjectName("nodeInspector")
+        self.setStyleSheet(
+            f"#nodeInspector {{ background:{theme.SURFACE}; border:1px solid "
+            f"{theme.BORDER_HI}; border-radius:8px; }}")
+        self.setFixedWidth(300)
+
+        self.panel = PropertiesPanel(graph, undo_stack)
+
+        self._title = QLabel("")
+        self._title.setStyleSheet(
+            f"color:{theme.TEXT}; font-weight:700; font-size:11px; background:transparent;")
+        btn_close = QPushButton("✕")
+        btn_close.setFixedSize(20, 18)
+        btn_close.setStyleSheet("background:transparent; border:0; color:%s;" % theme.TEXT_DIM)
+        btn_close.clicked.connect(lambda: self.show_node(None))
+        head = QHBoxLayout()
+        head.setContentsMargins(10, 6, 6, 4)
+        head.addWidget(self._title)
+        head.addStretch(1)
+        head.addWidget(btn_close)
+        self._head = QWidget()
+        self._head.setLayout(head)
+        self._head.setStyleSheet(f"background:{theme.SURFACE_2}; border-top-left-radius:8px;"
+                                 " border-top-right-radius:8px;")
+        self._head.setCursor(Qt.CursorShape.SizeAllCursor)
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(1, 1, 1, 1)
+        lay.setSpacing(0)
+        lay.addWidget(self._head)
+        lay.addWidget(self.panel, 1)
+
+        self.hide()
+        self._timer = QTimer(self)
+        self._timer.setInterval(120)
+        self._timer.timeout.connect(self._reposition)
+
+    # ---- API used by MainWindow (drop-in for the old PropertiesPanel) ----
+    def show_node(self, cid) -> None:
+        self._cid = cid
+        self.panel.show_node(cid)
+        if cid and cid in self.panel._graph.nodes:
+            n = self.panel._graph.nodes[cid]
+            self._title.setText(f"{n.title}  ·  {n.type_name}")
+            self.show()
+            self.raise_()
+            self._reposition()
+            self._timer.start()
+        else:
+            self.hide()
+            self._timer.stop()
+
+    def refresh(self) -> None:
+        self.panel.refresh()
+
+    # ---- positioning ----------------------------------------------------
+    def _reposition(self) -> None:
+        vp = self.parentWidget()
+        if vp is None:
+            return
+        h = min(max(200, vp.height() - 24), 480)
+        self.setFixedHeight(h)
+        if self._pinned_pos is not None:
+            x, y = self._pinned_pos.x(), self._pinned_pos.y()
+        else:
+            r = self._canvas.node_view_rect(self._cid)
+            if r is None:
+                return
+            x = r.right() + 14
+            if x + self.width() > vp.width() - 8:
+                x = r.left() - self.width() - 14
+            y = r.top()
+        x = max(8, min(int(x), vp.width() - self.width() - 8))
+        y = max(8, min(int(y), vp.height() - h - 8))
+        self.move(x, y)
+
+    # ---- drag the card by its header ----------------------------------
+    def mousePressEvent(self, e) -> None:  # noqa: N802
+        if self._head.geometry().contains(e.position().toPoint()):
+            self._drag_from = e.globalPosition().toPoint() - self.pos()
+        else:
+            super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e) -> None:  # noqa: N802
+        if self._drag_from is not None:
+            self.move(e.globalPosition().toPoint() - self._drag_from)
+            self._pinned_pos = self.pos()
+
+    def mouseReleaseEvent(self, _e) -> None:  # noqa: N802
+        self._drag_from = None
+
+    def mouseDoubleClickEvent(self, e) -> None:  # noqa: N802
+        if self._head.geometry().contains(e.position().toPoint()):
+            self._pinned_pos = None          # snap back to following the node
+            self._reposition()
 
 
 def _label(name: str) -> QLabel:

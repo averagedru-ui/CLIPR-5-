@@ -29,7 +29,7 @@ from vcomp.nodes.registry import by_category, load_builtin_nodes
 from vcomp.ui import theme
 from vcomp.ui.frame_fetcher import FrameFetcher
 from vcomp.ui.node_canvas import NodeCanvas
-from vcomp.ui.properties import PropertiesPanel
+from vcomp.ui.properties import NodeInspectorOverlay
 from vcomp.ui.render_worker import RenderWorker
 from vcomp.ui.timeline import Timeline
 from vcomp.ui.viewport_output import OutputViewport
@@ -203,7 +203,8 @@ class MainWindow(QMainWindow):
         self.canvas.nodeSelected.connect(self._on_node_selected)
         self.canvas.status.connect(self.set_status)
 
-        self.props = PropertiesPanel(self.graph, self.undo_stack)
+        # node controls live on a card anchored to the selected node, not a panel
+        self.props = NodeInspectorOverlay(self.graph, self.undo_stack, self.canvas)
 
         self.source_view.createRegion.connect(self._on_create_region)
         self.source_view.createPolygon.connect(self._on_create_polygon)
@@ -296,11 +297,9 @@ class MainWindow(QMainWindow):
         self._left_split.setCollapsible(1, False)
         left = self._left_split
 
-        # ---- right: node canvas + properties
+        # ---- right: node canvas (inspector floats over it, anchored to the node)
         right = self._right_split = QSplitter(Qt.Orientation.Horizontal)
         right.addWidget(_panel("Node Graph", self.canvas.widget))
-        right.addWidget(_panel("Properties", self.props))
-        right.setSizes([720, 320])
         right.setStretchFactor(0, 1)
 
         self._main_split = QSplitter(Qt.Orientation.Horizontal)

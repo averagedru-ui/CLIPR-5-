@@ -133,6 +133,48 @@ def _jsonable(v):
     return v
 
 
+class _NodeContextMenu(QObject):
+    """Right-click a node -> a small QMenu (Delete / Enable-Disable). Uses an
+    event filter so it works regardless of NodeGraphQt's per-type menu system."""
+
+    def __init__(self, viewer, canvas) -> None:
+        super().__init__(viewer)
+        self._v = viewer
+        self._canvas = canvas
+
+    def eventFilter(self, _obj, e) -> bool:  # noqa: N802
+        if e.type() != QEvent.Type.MouseButtonPress or e.button() != Qt.MouseButton.RightButton:
+            return False
+        v = self._v
+        item = v.itemAt(e.position().toPoint())
+        node = None
+        while item is not None:
+            if hasattr(item, "id") and hasattr(item, "name"):
+                node = item
+                break
+            item = item.parentItem() if hasattr(item, "parentItem") else None
+        if node is None:
+            return False
+        cid = self._canvas.core_id_for_ng(node.id)
+        if cid is None:
+            return False
+
+        from PySide6.QtWidgets import QMenu
+
+        core = self._canvas.core.nodes.get(cid)
+        m = QMenu(v)
+        act_dis = m.addAction("Enable" if (core and not core.enabled) else "Disable")
+        m.addSeparator()
+        act_del = m.addAction("Delete")
+        act_del.setEnabled(bool(core and core.deletable))
+        chosen = m.exec(e.globalPosition().toPoint())
+        if chosen is act_del:
+            self._canvas.ctx_delete(cid)
+        elif chosen is act_dis:
+            self._canvas.ctx_toggle_enabled(cid)
+        return True
+
+
 class _CanvasPan(QObject):
     """Left-drag on empty canvas pans the view (works over RDP where MMB /
     scroll are unreliable). Drag that starts on a node/pipe is left alone."""
@@ -204,10 +246,57 @@ class NodeCanvas(QObject):
         self.ng.nodes_deleted.connect(self._on_nodes_deleted)
         self.ng.property_changed.connect(self._on_property_changed)
         self.ng.node_selection_changed.connect(self._on_selection)
+        try:
+            v = self.ng.viewer()
+            self._ctx_filter = _NodeContextMenu(v, self)
+            v.viewport().installEventFilter(self._ctx_filter)
+        except Exception:  # noqa: BLE001
+            log.exception("could not install node context menu")
+
+    # ---- right-click node menu ------------------------------------------
+    def core_id_for_ng(self, ng_id: str) -> str | None:
+        return self._n2c.get(ng_id)
+
+    def ctx_delete(self, cid: str) -> None:
+        node = self.core.nodes.get(cid)
+        if node is None:
+            return
+        if not node.deletable:
+            self.status.emit("Output node cannot be deleted")
+            return
+        title = node.title
+        self.undo.push(cmd.RemoveNodeCmd(self.core, cid))
+        self.sync_from_core()
+        self.status.emit(f"deleted {title}")
+
+    def ctx_toggle_enabled(self, cid: str) -> None:
+        node = self.core.nodes.get(cid)
+        if node is not None:
+            self.undo.push(cmd.SetEnabledCmd(self.core, cid, not node.enabled))
+            self.sync_from_core()
 
     @property
     def widget(self):
         return self.ng.widget
+
+    def viewport_widget(self):
+        """The QGraphicsView viewport - parent for a node-anchored overlay."""
+        return self.ng.viewer().viewport()
+
+    def node_view_rect(self, cid: str):
+        """Selected node's on-screen rect in viewport pixel coords, or None."""
+        ng = self._c2n.get(cid)
+        if ng is None:
+            return None
+        try:
+            from PySide6.QtCore import QRect
+            v = self.ng.viewer()
+            sr = ng.view.sceneBoundingRect()
+            tl = v.mapFromScene(sr.topLeft())
+            br = v.mapFromScene(sr.bottomRight())
+            return QRect(tl, br)
+        except Exception:  # noqa: BLE001
+            return None
 
     # ------------------------------------------------------------- thumbnails
     def _thumb_widget(self, ng_node):
