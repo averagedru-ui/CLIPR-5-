@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -24,8 +25,19 @@ from vcomp.ui import theme
 
 _ACCENT = QColor(theme.ACCENT_HI)
 _PLAYHEAD = QColor("#e5484d")
-_LANE_H = 30
+_LANE_H = 44
 _LABEL_BAND = 15
+
+_LANE_BTN_QSS = f"""
+QPushButton {{
+    border: 1px solid {theme.BORDER_HI}; border-radius: 4px;
+    background: {theme.SURFACE_3}; color: {theme.TEXT_DIM};
+    font-size: 11px; font-weight: 700; padding: 0;
+}}
+QPushButton:hover {{ border-color: {theme.TEXT_DIM}; }}
+QPushButton#mute:checked {{ background: #d1443b; border-color: #d1443b; color: white; }}
+QPushButton#solo:checked {{ background: #d8a13a; border-color: #d8a13a; color: #1a1400; }}
+"""
 
 
 def _timecode(frame: int, fps: float) -> str:
@@ -197,6 +209,7 @@ def _nice_step(sec: float) -> float:
 # ----------------------------------------------------------------- audio lane
 class AudioLane(QWidget):
     changed = Signal()
+    _HEADER_W = 132
 
     def __init__(self, index: int, name: str) -> None:
         super().__init__()
@@ -204,30 +217,36 @@ class AudioLane(QWidget):
         self.muted = False
         self.solo = False
         self._pix: QPixmap | None = None
-        self.setFixedHeight(_LANE_H)
+        self.setMinimumHeight(_LANE_H)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(6, 2, 6, 2)
-        lay.setSpacing(4)
+        lay.setContentsMargins(7, 4, 7, 4)
+        lay.setSpacing(5)
 
         self.btn_m = QPushButton("M")
+        self.btn_m.setObjectName("mute")
         self.btn_s = QPushButton("S")
+        self.btn_s.setObjectName("solo")
         for b, tip in ((self.btn_m, "Mute this track"), (self.btn_s, "Solo this track")):
             b.setCheckable(True)
-            b.setFixedSize(20, 18)
+            b.setFixedSize(24, 22)
             b.setToolTip(tip)
+            b.setStyleSheet(_LANE_BTN_QSS)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_m.toggled.connect(self._on_mute)
         self.btn_s.toggled.connect(self._on_solo)
 
         self.lbl = QLabel(name)
-        self.lbl.setFixedWidth(78)
-        self.lbl.setStyleSheet(f"color:{theme.TEXT_DIM}; font-size:10px;")
+        self.lbl.setFixedWidth(self._HEADER_W - 24 - 24 - 15)
+        self.lbl.setToolTip(name)
+        self.lbl.setStyleSheet(f"color:{theme.TEXT}; font-size:11px; font-weight:600;")
 
         lay.addWidget(self.btn_m)
         lay.addWidget(self.btn_s)
         lay.addWidget(self.lbl)
         lay.addStretch(1)
-        self._wave_x = 6 + 20 + 20 + 78 + 4 * 4   # left of the waveform area
+        self._wave_x = self._HEADER_W
 
     def _on_mute(self, on: bool) -> None:
         self.muted = on
@@ -247,19 +266,21 @@ class AudioLane(QWidget):
     def paintEvent(self, _e) -> None:  # noqa: N802
         p = QPainter(self)
         bg = QColor(theme.SURFACE_2 if self.index % 2 == 0 else theme.SURFACE)
-        if self.muted:
-            bg = QColor(theme.SURFACE)
         p.fillRect(self.rect(), bg)
+        # header divider
+        p.setPen(QPen(QColor(theme.BORDER), 1))
+        p.drawLine(self._wave_x - 4, 2, self._wave_x - 4, self.height() - 2)
+
         wx = self._wave_x
-        area = QRectF(wx, 1, self.width() - wx - 4, self.height() - 2)
+        area = QRectF(wx, 2, self.width() - wx - 4, self.height() - 4)
         if self._pix is not None:
-            p.setOpacity(0.35 if self.muted else 0.95)
+            p.setOpacity(0.28 if self.muted else 0.95)
             p.drawPixmap(area, self._pix, QRectF(self._pix.rect()))
             p.setOpacity(1.0)
         else:
             p.setPen(QColor(theme.TEXT_DIM))
             p.drawText(area, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                       "  analysing…")
+                       "  analysing waveform…")
         p.setPen(QPen(QColor(theme.BORDER), 1))
         p.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
 
@@ -309,7 +330,6 @@ class Timeline(QWidget):
         self._lane_scroll.setWidget(self._lane_host)
         self._lane_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self._lane_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._lane_scroll.setMaximumHeight(0)
         self._lane_scroll.hide()
 
         self.btn_play = QPushButton("Play")
@@ -363,17 +383,23 @@ class Timeline(QWidget):
         lay.setSpacing(2)
         lay.addWidget(self.ruler)
         lay.addWidget(self.cache_bar)
-        lay.addWidget(self._lane_scroll)
+        lay.addWidget(self._lane_scroll, 1)     # grows with the panel
         lay.addLayout(row)
+        self.setMinimumHeight(92)
         self._sync_height()
 
     def _sync_height(self) -> None:
         n = len(self._lanes)
-        lane_area = 0 if n == 0 else min(n, 4) * _LANE_H + 2
-        self._lane_scroll.setMaximumHeight(lane_area)
-        self._lane_scroll.setMinimumHeight(lane_area)
         self._lane_scroll.setVisible(n > 0)
-        self.setMaximumHeight(34 + 4 + lane_area + 40 + 20)
+        if n == 0:
+            self._lane_scroll.setMinimumHeight(0)
+            self.setMinimumHeight(92)
+            return
+        # show up to 3 lanes without scrolling; the left-panel splitter lets
+        # the user drag the timeline taller to see (and enlarge) the rest
+        floor = min(n, 3) * _LANE_H + 2
+        self._lane_scroll.setMinimumHeight(floor)
+        self.setMinimumHeight(34 + 4 + floor + 40 + 12)
 
     # ------------------------------------------------------------- audio
     def set_audio_tracks(self, tracks, source_path: str) -> None:
@@ -387,11 +413,10 @@ class Timeline(QWidget):
 
         show = list(tracks) if len(tracks) > 1 else []   # single track = no lane clutter
         for tr in show:
-            lane = AudioLane(tr.index, f"T{tr.index + 1}  {tr.name[:8]}")
+            lane = AudioLane(tr.index, f"Track {tr.index + 1}")
             lane.changed.connect(self._on_lane_changed)
             self._lane_lay.addWidget(lane)
             self._lanes.append(lane)
-        self._lane_lay.addStretch(1)
         self._sync_height()
 
         if self._lanes and source_path:

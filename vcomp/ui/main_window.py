@@ -282,11 +282,18 @@ class MainWindow(QMainWindow):
         bl.addWidget(self.tb_guides)
         bl.addWidget(self.tb_fullq)
 
-        # ---- left: viewport + timeline
+        # ---- left: viewport + timeline, split so the timeline can be dragged
+        #      taller (room for all the audio lanes)
         self._vp_stack = QStackedWidget()
         self._vp_stack.addWidget(self.source_view)
         self._vp_stack.addWidget(self.output_view)
-        left = _panel("Viewport", self._vp_stack, extra=self.timeline)
+        self._left_split = QSplitter(Qt.Orientation.Vertical)
+        self._left_split.addWidget(_panel("Viewport", self._vp_stack))
+        self._left_split.addWidget(_panel("Timeline", self.timeline))
+        self._left_split.setStretchFactor(0, 1)
+        self._left_split.setSizes([560, 160])
+        self._left_split.setCollapsible(1, False)
+        left = self._left_split
 
         # ---- right: node canvas + properties
         right = self._right_split = QSplitter(Qt.Orientation.Horizontal)
@@ -794,7 +801,7 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "CLIPR", f"Error:\n{msg}")
 
     # ---------------------------------------------------------------- layout
-    _LAYOUT_VERSION = 4
+    _LAYOUT_VERSION = 5
 
     def _restore_layout(self) -> None:
         if self.settings.get("layout_version") != self._LAYOUT_VERSION:
@@ -804,7 +811,8 @@ class MainWindow(QMainWindow):
             if geo:
                 self.restoreGeometry(base64.b64decode(geo))
             for split, key in ((self._main_split, "split_main"),
-                               (self._right_split, "split_right")):
+                               (self._right_split, "split_right"),
+                               (self._left_split, "split_left")):
                 data = self.settings.get(key)
                 if data:
                     split.restoreState(base64.b64decode(data))
@@ -833,6 +841,8 @@ class MainWindow(QMainWindow):
                           base64.b64encode(bytes(self._main_split.saveState())).decode("ascii"))
         self.settings.set("split_right",
                           base64.b64encode(bytes(self._right_split.saveState())).decode("ascii"))
+        self.settings.set("split_left",
+                          base64.b64encode(bytes(self._left_split.saveState())).decode("ascii"))
         self.settings.save()
         super().closeEvent(event)
 
