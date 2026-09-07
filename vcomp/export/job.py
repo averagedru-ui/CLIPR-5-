@@ -33,6 +33,7 @@ class ExportRequest:
     crf: int = 18
     audio_bitrate: str = "192k"
     speed: float = 1.0
+    audio_tracks: tuple = (0,)     # audio-stream indices mixed into the export
 
 
 class ExportJob(QObject):
@@ -87,6 +88,7 @@ class ExportJob(QObject):
                 encoder=enc, crf=req.crf, audio_bitrate=req.audio_bitrate,
                 source_path=req.source_path, in_point=req.in_point,
                 out_point=req.out_point, speed=req.speed,
+                audio_tracks=tuple(req.audio_tracks) or (0,),
             )
             proc = FFmpegProcess(spec)
             proc.start()

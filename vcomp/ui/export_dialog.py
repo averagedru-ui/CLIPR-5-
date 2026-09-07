@@ -33,7 +33,8 @@ from vcomp.export.presets import PRESET_ORDER, PRESETS
 
 class ExportDialog(QDialog):
     def __init__(self, parent, graph, source_path: str, in_point: float,
-                 out_point: float, speed: float = 1.0) -> None:
+                 out_point: float, speed: float = 1.0, *,
+                 audio_tracks=(), selected_tracks=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Export")
         self.setMinimumWidth(460)
@@ -42,6 +43,9 @@ class ExportDialog(QDialog):
         self._in = in_point
         self._out = max(out_point, in_point + 0.1)
         self._speed = speed
+        self._audio_tracks = list(audio_tracks)
+        self._sel_tracks = set(selected_tracks if selected_tracks is not None else [0])
+        self._track_boxes: list = []
         self._job: ExportJob | None = None
 
         self._encoders = detect_encoders()
@@ -110,6 +114,23 @@ class ExportDialog(QDialog):
         self.ed_audio = QLineEdit("192k")
         form.addRow("Audio bitrate", self.ed_audio)
 
+        if len(self._audio_tracks) > 1:
+            from PySide6.QtWidgets import QCheckBox
+
+            trk_row = QHBoxLayout()
+            trk_row.setSpacing(8)
+            for tr in self._audio_tracks:
+                cb = QCheckBox(f"T{tr.index + 1}")
+                cb.setToolTip(tr.name)
+                cb.setChecked(tr.index in self._sel_tracks)
+                cb.setProperty("track_index", tr.index)
+                trk_row.addWidget(cb)
+                self._track_boxes.append(cb)
+            trk_row.addStretch(1)
+            tw = QWidget()
+            tw.setLayout(trk_row)
+            form.addRow("Audio tracks (mix)", tw)
+
         lay.addLayout(form)
 
         self.lbl_est = QLabel()
@@ -162,6 +183,12 @@ class ExportDialog(QDialog):
             f"~{frames} frames · ~{size_mb:.0f} MB · source range "
             f"{self._in:.2f}–{self._out:.2f}s")
 
+    def _chosen_tracks(self) -> list[int]:
+        if not self._track_boxes:
+            return sorted(self._sel_tracks) or [0]
+        picked = [b.property("track_index") for b in self._track_boxes if b.isChecked()]
+        return picked or [0]
+
     # --------------------------------------------------------------- export
     def _start(self) -> None:
         out = self.ed_path.text().strip()
@@ -183,6 +210,7 @@ class ExportDialog(QDialog):
             crf=self.sp_crf.value(),
             audio_bitrate=self.ed_audio.text().strip() or "192k",
             speed=self._speed,
+            audio_tracks=self._chosen_tracks(),
         )
         self._job = ExportJob(req)
         self._job.progress.connect(self._on_progress)

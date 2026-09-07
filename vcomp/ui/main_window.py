@@ -670,6 +670,7 @@ class MainWindow(QMainWindow):
         self.settings.add_recent_file(info.path)
         self.settings.save()
         self.timeline.set_media(info.frame_count, info.fps)
+        self.timeline.set_audio_tracks(info.audio_tracks, info.path)
         dw, dh = info.display_width, info.display_height
         for node in self.graph.clip_source_nodes():
             node.params["file_path"].set(info.path)
@@ -771,7 +772,7 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "CLIPR", f"Error:\n{msg}")
 
     # ---------------------------------------------------------------- layout
-    _LAYOUT_VERSION = 3
+    _LAYOUT_VERSION = 4
 
     def _restore_layout(self) -> None:
         if self.settings.get("layout_version") != self._LAYOUT_VERSION:
@@ -790,6 +791,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.timeline.set_playing(False)
+        self.timeline.stop_workers()
         self._autosave.stop()
         self.fetcher.stop()
         self.renderer.stop()
@@ -1067,7 +1069,9 @@ class MainWindow(QMainWindow):
         speed = float(clip.params["speed"].value) if clip else 1.0
         in_t = self.timeline.in_point / self._info.fps
         out_t = (self.timeline.out_point + 1) / self._info.fps
-        dlg = ExportDialog(self, self.graph, self._info.path, in_t, out_t, speed)
+        dlg = ExportDialog(self, self.graph, self._info.path, in_t, out_t, speed,
+                           audio_tracks=self._info.audio_tracks,
+                           selected_tracks=self.timeline.active_audio_tracks())
         dlg.exec()
 
     def _todo(self) -> None:

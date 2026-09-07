@@ -23,6 +23,15 @@ _ROTATE_TAG_RE = re.compile(r"\brotate\s*[:=]\s*(-?\d+)", re.I)
 
 
 @dataclass(frozen=True)
+class AudioStreamInfo:
+    index: int                 # audio-stream index (0-based, i.e. ffmpeg 1:a:<index>)
+    channels: int
+    sample_rate: int
+    codec: str
+    name: str                  # OBS/user track name, else "Audio N"
+
+
+@dataclass(frozen=True)
 class MediaInfo:
     path: str
     width: int
@@ -35,6 +44,7 @@ class MediaInfo:
     is_vfr: bool
     time_base: Fraction        # video stream time base
     rotation: int = 0          # container display rotation, degrees CW to view upright
+    audio_tracks: tuple[AudioStreamInfo, ...] = ()
 
     @property
     def aspect(self) -> float:
@@ -74,6 +84,22 @@ def probe(path: str | Path) -> MediaInfo:
         tb = v.time_base or Fraction(1, 1000)
         meta_rotate = v.metadata.get("rotate", "")
 
+        audio_tracks = []
+        for i, a in enumerate(c.streams.audio):
+            md = dict(a.metadata or {})
+            name = (md.get("title") or md.get("handler_name")
+                    or md.get("language") or f"Audio {i + 1}")
+            try:
+                ch = int(a.codec_context.channels)
+            except Exception:  # noqa: BLE001
+                ch = getattr(getattr(a.codec_context, "layout", None), "nb_channels", 2) or 2
+            audio_tracks.append(AudioStreamInfo(
+                index=i, channels=ch,
+                sample_rate=int(a.codec_context.sample_rate or 48000),
+                codec=getattr(a.codec_context, "name", "") or "",
+                name=str(name).strip() or f"Audio {i + 1}",
+            ))
+
     rotation = detect_rotation(path, meta_rotate)
 
     return MediaInfo(
@@ -88,6 +114,7 @@ def probe(path: str | Path) -> MediaInfo:
         is_vfr=is_vfr,
         time_base=tb,
         rotation=rotation,
+        audio_tracks=tuple(audio_tracks),
     )
 
 

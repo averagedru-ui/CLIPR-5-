@@ -1,34 +1,43 @@
 """Transport / timeline.
 
-A scrubbable time ruler (click or drag anywhere to move the playhead), transport
-buttons, in/out range, loop, a seconds+frames readout, and a cache bar showing
-which frames are decoded. Playback runs against a wall clock and drops frames to
-hold real time when rendering can't keep up.
+A scrubbable time ruler, transport buttons, in/out range, loop, a timecode
+readout, a render-cache bar, and - when a clip carries more than one audio
+stream (OBS multi-track) - one waveform lane per track with mute / solo.
+Playback runs against a wall clock and drops frames to hold real time.
 """
 from __future__ import annotations
 
 import time
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
 from vcomp.ui import theme
 
+_ACCENT = QColor(theme.ACCENT_HI)
+_PLAYHEAD = QColor("#e5484d")
+_LANE_H = 30
+_LABEL_BAND = 15
 
-def _fmt(frame: int, fps: float) -> str:
+
+def _timecode(frame: int, fps: float) -> str:
     if fps <= 0:
-        return "00:00 f00"
+        return "00:00:00"
     total = frame / fps
-    m, s = divmod(total, 60)
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
     ff = frame % max(1, round(fps))
-    return f"{int(m):02d}:{int(s):02d} f{ff:02d}"
+    if h >= 1:
+        return f"{int(h)}:{int(m):02d}:{int(s):02d};{ff:02d}"
+    return f"{int(m):02d}:{int(s):02d};{ff:02d}"
 
 
 # ---------------------------------------------------------------- cache bar
@@ -45,13 +54,13 @@ class CacheBar(QWidget):
 
     def paintEvent(self, _e) -> None:  # noqa: N802
         p = QPainter(self)
-        p.fillRect(self.rect(), QColor("#141418"))
+        p.fillRect(self.rect(), QColor(theme.SURFACE_2))
         if self._count <= 0:
             return
         w = self.width()
         cw = max(1.0, w / self._count)
-        col = QColor(theme.ACCENT)
-        col.setAlpha(150)
+        col = QColor(_ACCENT)
+        col.setAlpha(170)
         for n in self._warm:
             p.fillRect(QRectF(n / self._count * w, 0, cw + 1, self.height()), col)
 
@@ -64,15 +73,14 @@ class TimeRuler(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setMinimumHeight(40)
-        self.setMaximumHeight(56)
+        self.setFixedHeight(34)
         self.setMouseTracking(True)
         self._count = 0
         self._fps = 30.0
         self._frame = 0
         self.in_point = 0
         self.out_point = 0
-        self._drag = None   # 'head' | 'in' | 'out' | None
+        self._drag = None
 
     def configure(self, count: int, fps: float) -> None:
         self._count = max(0, count)
@@ -87,7 +95,6 @@ class TimeRuler(QWidget):
         self.in_point, self.out_point = a, b
         self.update()
 
-    # -------------------------------------------------------- geometry
     def _x(self, frame: float) -> float:
         if self._count <= 1:
             return 0.0
@@ -98,54 +105,68 @@ class TimeRuler(QWidget):
             return 0
         return int(round(x / max(1, self.width() - 1) * (self._count - 1)))
 
-    # ------------------------------------------------------------ paint
     def paintEvent(self, _e) -> None:  # noqa: N802
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        h = self.height()
-        p.fillRect(self.rect(), QColor("#1c1c22"))
+        w, h = self.width(), self.height()
+        p.fillRect(self.rect(), QColor(theme.SURFACE))
 
         if self._count <= 1:
             p.setPen(QColor(theme.TEXT_DIM))
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "no clip")
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "no clip loaded")
             return
 
-        # in / out shaded range
-        x0, x1 = self._x(self.in_point), self._x(self.out_point)
-        p.fillRect(QRectF(x0, 0, x1 - x0, h), QColor(76, 141, 255, 28))
-        for x, sig in ((x0, "in"), (x1, "out")):
-            p.setPen(QPen(QColor(theme.ACCENT), 1))
-            p.drawLine(QPointF(x, 0), QPointF(x, h))
+        track_top = _LABEL_BAND
 
-        # ticks: aim for ~1 label every 90 px
+        # in / out shaded range + edges
+        x0, x1 = self._x(self.in_point), self._x(self.out_point)
+        shade = QColor(_ACCENT)
+        shade.setAlpha(26)
+        p.fillRect(QRectF(x0, track_top, x1 - x0, h - track_top), shade)
+        p.setPen(QPen(QColor(_ACCENT), 2))
+        for x in (x0, x1):
+            p.drawLine(QPointF(x, track_top), QPointF(x, h))
+        # grab-handle nubs
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(_ACCENT))
+        for x in (x0, x1):
+            p.drawRoundedRect(QRectF(x - 3, track_top, 6, 9), 2, 2)
+
+        # ticks + labels (~1 label per 100 px, kept inside the widget)
         total_s = (self._count - 1) / self._fps
-        px_per_s = self.width() / max(total_s, 1e-6)
-        step = _nice_step(90 / max(px_per_s, 1e-6))
-        p.setPen(QColor(theme.TEXT_DIM))
+        px_per_s = w / max(total_s, 1e-6)
+        step = _nice_step(100 / max(px_per_s, 1e-6))
+        pen_tick = QPen(QColor(theme.BORDER_HI))
+        pen_text = QColor(theme.TEXT_DIM)
         t = 0.0
         while t <= total_s + 1e-6:
             x = self._x(t * self._fps)
-            p.drawLine(QPointF(x, h - 10), QPointF(x, h))
+            p.setPen(pen_tick)
+            p.drawLine(QPointF(x, h - 8), QPointF(x, h))
             m, s = divmod(t, 60)
-            p.drawText(QRectF(x + 2, 2, 60, 12), Qt.AlignmentFlag.AlignLeft,
-                       f"{int(m):d}:{s:04.1f}" if step < 1 else f"{int(m):d}:{int(s):02d}")
+            lbl = f"{int(m):d}:{s:04.1f}" if step < 1 else f"{int(m):d}:{int(s):02d}"
+            p.setPen(pen_text)
+            tw = self.fontMetrics().horizontalAdvance(lbl)
+            tx = min(max(0.0, x - 1), w - tw - 1)     # clamp so it never clips
+            p.drawText(QRectF(tx, 0, tw + 4, _LABEL_BAND),
+                       Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, lbl)
             t += step
 
         # playhead
         hx = self._x(self._frame)
-        p.setPen(QPen(QColor("#ff5555"), 1.5))
-        p.drawLine(QPointF(hx, 0), QPointF(hx, h))
-        tri = QPolygonF([QPointF(hx - 5, 0), QPointF(hx + 5, 0), QPointF(hx, 8)])
-        p.setBrush(QColor("#ff5555"))
+        p.setPen(QPen(_PLAYHEAD, 1.5))
+        p.drawLine(QPointF(hx, track_top - 4), QPointF(hx, h))
         p.setPen(Qt.PenStyle.NoPen)
-        p.drawPolygon(tri)
+        p.setBrush(_PLAYHEAD)
+        p.drawPolygon(QPolygonF([QPointF(hx - 5, track_top - 4),
+                                 QPointF(hx + 5, track_top - 4),
+                                 QPointF(hx, track_top + 4)]))
 
-    # ------------------------------------------------------------ mouse
     def mousePressEvent(self, e) -> None:  # noqa: N802
         x = e.position().x()
-        if abs(x - self._x(self.in_point)) < 6:
+        if abs(x - self._x(self.in_point)) < 7:
             self._drag = "in"
-        elif abs(x - self._x(self.out_point)) < 6:
+        elif abs(x - self._x(self.out_point)) < 7:
             self._drag = "out"
         else:
             self._drag = "head"
@@ -173,11 +194,82 @@ def _nice_step(sec: float) -> float:
     return 900.0
 
 
+# ----------------------------------------------------------------- audio lane
+class AudioLane(QWidget):
+    changed = Signal()
+
+    def __init__(self, index: int, name: str) -> None:
+        super().__init__()
+        self.index = index
+        self.muted = False
+        self.solo = False
+        self._pix: QPixmap | None = None
+        self.setFixedHeight(_LANE_H)
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(6, 2, 6, 2)
+        lay.setSpacing(4)
+
+        self.btn_m = QPushButton("M")
+        self.btn_s = QPushButton("S")
+        for b, tip in ((self.btn_m, "Mute this track"), (self.btn_s, "Solo this track")):
+            b.setCheckable(True)
+            b.setFixedSize(20, 18)
+            b.setToolTip(tip)
+        self.btn_m.toggled.connect(self._on_mute)
+        self.btn_s.toggled.connect(self._on_solo)
+
+        self.lbl = QLabel(name)
+        self.lbl.setFixedWidth(78)
+        self.lbl.setStyleSheet(f"color:{theme.TEXT_DIM}; font-size:10px;")
+
+        lay.addWidget(self.btn_m)
+        lay.addWidget(self.btn_s)
+        lay.addWidget(self.lbl)
+        lay.addStretch(1)
+        self._wave_x = 6 + 20 + 20 + 78 + 4 * 4   # left of the waveform area
+
+    def _on_mute(self, on: bool) -> None:
+        self.muted = on
+        self.update()
+        self.changed.emit()
+
+    def _on_solo(self, on: bool) -> None:
+        self.solo = on
+        self.update()
+        self.changed.emit()
+
+    def set_waveform(self, path: str) -> None:
+        pm = QPixmap(path)
+        self._pix = pm if not pm.isNull() else None
+        self.update()
+
+    def paintEvent(self, _e) -> None:  # noqa: N802
+        p = QPainter(self)
+        bg = QColor(theme.SURFACE_2 if self.index % 2 == 0 else theme.SURFACE)
+        if self.muted:
+            bg = QColor(theme.SURFACE)
+        p.fillRect(self.rect(), bg)
+        wx = self._wave_x
+        area = QRectF(wx, 1, self.width() - wx - 4, self.height() - 2)
+        if self._pix is not None:
+            p.setOpacity(0.35 if self.muted else 0.95)
+            p.drawPixmap(area, self._pix, QRectF(self._pix.rect()))
+            p.setOpacity(1.0)
+        else:
+            p.setPen(QColor(theme.TEXT_DIM))
+            p.drawText(area, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                       "  analysing…")
+        p.setPen(QPen(QColor(theme.BORDER), 1))
+        p.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
+
+
 # ---------------------------------------------------------------- timeline
 class Timeline(QWidget):
     frameChanged = Signal(int)
     inOutChanged = Signal(int, int)
     playingChanged = Signal(bool)
+    audioChanged = Signal()          # mute / solo state changed
 
     def __init__(self) -> None:
         super().__init__()
@@ -190,6 +282,8 @@ class Timeline(QWidget):
         self._play_t0 = 0.0
         self._play_f0 = 0
         self._last_ui_sync = 0.0
+        self._lanes: list[AudioLane] = []
+        self._wave = None
 
         self._timer = QTimer(self)
         self._timer.setInterval(16)
@@ -205,21 +299,38 @@ class Timeline(QWidget):
         self.ruler.setOut.connect(self._set_out)
         self.cache_bar = CacheBar()
 
+        self._lane_host = QWidget()
+        self._lane_lay = QVBoxLayout(self._lane_host)
+        self._lane_lay.setContentsMargins(0, 0, 0, 0)
+        self._lane_lay.setSpacing(0)
+        self._lane_scroll = QScrollArea()
+        self._lane_scroll.setWidgetResizable(True)
+        self._lane_scroll.setWidget(self._lane_host)
+        self._lane_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._lane_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._lane_scroll.setMaximumHeight(0)
+        self._lane_scroll.hide()
+
         self.btn_play = QPushButton("Play")
+        self.btn_play.setObjectName("primary")
         self.btn_play.setCheckable(True)
         self.btn_play.toggled.connect(self.set_playing)
 
-        b_prev = QPushButton("|<")
-        b_pf = QPushButton("<")
-        b_nf = QPushButton(">")
-        b_next = QPushButton(">|")
+        b_prev = QPushButton("|◀")
+        b_pf = QPushButton("◀")
+        b_nf = QPushButton("▶")
+        b_next = QPushButton("▶|")
         b_prev.clicked.connect(lambda: self.seek(self.in_point))
         b_next.clicked.connect(lambda: self.seek(self.out_point))
         b_pf.clicked.connect(lambda: self.seek(self._frame - 1))
         b_nf.clicked.connect(lambda: self.seek(self._frame + 1))
+        for b in (b_prev, b_pf, b_nf, b_next):
+            b.setFixedWidth(34)
 
-        self.btn_in = QPushButton("Set In")
-        self.btn_out = QPushButton("Set Out")
+        self.btn_in = QPushButton("[ In")
+        self.btn_out = QPushButton("Out ]")
+        self.btn_in.setToolTip("Set the in point to the playhead (I)")
+        self.btn_out.setToolTip("Set the out point to the playhead (O)")
         self.btn_in.clicked.connect(lambda: self._set_in(self._frame))
         self.btn_out.clicked.connect(lambda: self._set_out(self._frame))
 
@@ -227,26 +338,91 @@ class Timeline(QWidget):
         self.btn_loop.setCheckable(True)
         self.btn_loop.toggled.connect(self._set_loop)
 
-        self.lbl = QLabel("00:00 f00 / 00:00 f00")
-        self.lbl.setStyleSheet(f"color:{theme.TEXT_DIM};")
+        self.lbl = QLabel("00:00;00")
+        self.lbl.setStyleSheet(
+            f"color:{theme.TEXT}; font-family:Consolas,monospace; font-size:12px;")
+        self.lbl_total = QLabel("/ 00:00;00")
+        self.lbl_total.setStyleSheet(
+            f"color:{theme.TEXT_DIM}; font-family:Consolas,monospace; font-size:12px;")
 
         row = QHBoxLayout()
+        row.setSpacing(4)
         for w in (b_prev, b_pf, self.btn_play, b_nf, b_next):
             row.addWidget(w)
-        row.addSpacing(12)
+        row.addSpacing(10)
         row.addWidget(self.btn_in)
         row.addWidget(self.btn_out)
         row.addWidget(self.btn_loop)
         row.addStretch(1)
         row.addWidget(self.lbl)
+        row.addWidget(self.lbl_total)
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 2, 8, 4)
-        lay.setSpacing(3)
+        lay.setContentsMargins(8, 4, 8, 6)
+        lay.setSpacing(2)
         lay.addWidget(self.ruler)
         lay.addWidget(self.cache_bar)
+        lay.addWidget(self._lane_scroll)
         lay.addLayout(row)
-        self.setMaximumHeight(110)
+        self._sync_height()
+
+    def _sync_height(self) -> None:
+        n = len(self._lanes)
+        lane_area = 0 if n == 0 else min(n, 4) * _LANE_H + 2
+        self._lane_scroll.setMaximumHeight(lane_area)
+        self._lane_scroll.setMinimumHeight(lane_area)
+        self._lane_scroll.setVisible(n > 0)
+        self.setMaximumHeight(34 + 4 + lane_area + 40 + 20)
+
+    # ------------------------------------------------------------- audio
+    def set_audio_tracks(self, tracks, source_path: str) -> None:
+        """`tracks` is a sequence of media.probe.AudioStreamInfo."""
+        for lane in self._lanes:
+            lane.setParent(None)
+            lane.deleteLater()
+        self._lanes = []
+        while self._lane_lay.count():
+            self._lane_lay.takeAt(0)
+
+        show = list(tracks) if len(tracks) > 1 else []   # single track = no lane clutter
+        for tr in show:
+            lane = AudioLane(tr.index, f"T{tr.index + 1}  {tr.name[:8]}")
+            lane.changed.connect(self._on_lane_changed)
+            self._lane_lay.addWidget(lane)
+            self._lanes.append(lane)
+        self._lane_lay.addStretch(1)
+        self._sync_height()
+
+        if self._lanes and source_path:
+            from vcomp.media.waveform import WaveformWorker
+
+            if self._wave is None:
+                self._wave = WaveformWorker()
+                self._wave.ready.connect(self._on_wave_ready)
+                self._wave.start()
+            self._wave.request(source_path, [l.index for l in self._lanes])
+
+    def _on_wave_ready(self, track: int, png: str) -> None:
+        for lane in self._lanes:
+            if lane.index == track:
+                lane.set_waveform(png)
+
+    def _on_lane_changed(self) -> None:
+        self.audioChanged.emit()
+
+    def active_audio_tracks(self) -> list[int]:
+        """Audio-stream indices that should be mixed into the export."""
+        if not self._lanes:
+            return [0]                    # default: first track only
+        solo = [l.index for l in self._lanes if l.solo]
+        if solo:
+            return solo
+        return [l.index for l in self._lanes if not l.muted]
+
+    def stop_workers(self) -> None:
+        if self._wave is not None:
+            self._wave.stop()
+            self._wave = None
 
     # ----------------------------------------------------------------- state
     def set_media(self, frame_count: int, fps: float) -> None:
@@ -274,8 +450,6 @@ class Timeline(QWidget):
         if index == self._frame:
             return
         self._frame = index
-        # while playing, the ruler repaint + label relayout compete with the
-        # viewport paint on the GUI thread - throttle them to ~20 Hz
         now = time.monotonic()
         if not self._timer.isActive() or now - self._last_ui_sync > 0.05:
             self._last_ui_sync = now
@@ -290,12 +464,11 @@ class Timeline(QWidget):
             self._play_f0 = self._frame if self._frame < self.out_point else self.in_point
             if self._frame >= self.out_point:
                 self.seek(self.in_point)
-            # schedule at ~2x frame rate for headroom, never a busy 100+ Hz timer
             self._timer.setInterval(max(8, int(1000.0 / (self._fps * 2.0))))
             self._timer.start()
         else:
             self._timer.stop()
-            self.ruler.set_frame(self._frame)   # land the playhead exactly
+            self.ruler.set_frame(self._frame)
             self._update_label()
         if self.btn_play.isChecked() != on:
             self.btn_play.blockSignals(True)
@@ -314,7 +487,7 @@ class Timeline(QWidget):
     # ------------------------------------------------------------------ slots
     def _tick(self) -> None:
         elapsed = time.monotonic() - self._play_t0
-        target = self._play_f0 + int(elapsed * self._fps)   # real-time; drops frames
+        target = self._play_f0 + int(elapsed * self._fps)
         if target > self.out_point:
             if self._loop:
                 self._play_t0 = time.monotonic()
@@ -342,7 +515,7 @@ class Timeline(QWidget):
         self._loop = on
 
     def _update_label(self) -> None:
-        self.lbl.setText(
-            f"{_fmt(self._frame, self._fps)}  /  {_fmt(max(0, self._count - 1), self._fps)}"
-            f"   in {self.in_point}  out {self.out_point}"
-        )
+        self.lbl.setText(_timecode(self._frame, self._fps))
+        self.lbl_total.setText(
+            f"/ {_timecode(max(0, self._count - 1), self._fps)}"
+            f"   in {self.in_point} · out {self.out_point}")

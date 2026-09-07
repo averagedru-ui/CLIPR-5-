@@ -86,6 +86,7 @@ class EncodeSpec:
     in_point: float = 0.0
     out_point: float | None = None
     speed: float = 1.0
+    audio_tracks: tuple = (0,)          # audio-stream indices to mix
 
 
 class FFmpegProcess:
@@ -112,8 +113,26 @@ class FFmpegProcess:
             args += ["-i", s.source_path]
 
         args += ["-map", "0:v:0"]
+
+        tracks = [t for t in (s.audio_tracks or (0,))] or [0]
+        a_filter = None
         if have_audio:
-            args += ["-map", "1:a:0?"]
+            if abs(s.speed - 1.0) > 1e-3:
+                tempo = _atempo_chain(s.speed)
+            else:
+                tempo = None
+            if len(tracks) == 1:
+                args += ["-map", f"1:a:{tracks[0]}?"]
+                a_filter = tempo
+            else:
+                # mix the picked tracks down to one stereo stream
+                ins = "".join(f"[1:a:{t}]" for t in tracks)
+                chain = f"{ins}amix=inputs={len(tracks)}:normalize=0[aout]"
+                if tempo:
+                    chain += f";[aout]{tempo}[aout2]"
+                    args += ["-filter_complex", chain, "-map", "[aout2]"]
+                else:
+                    args += ["-filter_complex", chain, "-map", "[aout]"]
 
         args += ["-c:v", s.encoder.codec, *s.encoder.extra]
         if s.encoder.codec == "libx264":
@@ -124,8 +143,8 @@ class FFmpegProcess:
             "-profile:v", "high", "-level", "4.2",
         ]
         if have_audio:
-            if abs(s.speed - 1.0) > 1e-3:
-                args += ["-filter:a", _atempo_chain(s.speed)]
+            if a_filter:
+                args += ["-filter:a", a_filter]
             args += ["-c:a", "aac", "-b:a", s.audio_bitrate, "-ar", "48000"]
         args += ["-movflags", "+faststart", "-shortest", s.out_path]
         return args
