@@ -83,9 +83,13 @@ class TimeRuler(QWidget):
     setIn = Signal(int)
     setOut = Signal(int)
 
+    _H = 46
+    _GRIP = _LABEL_BAND + 12     # clicks above this Y grab an in/out handle;
+                                 # clicks below always scrub (so frame 0 is reachable)
+
     def __init__(self) -> None:
         super().__init__()
-        self.setFixedHeight(34)
+        self.setFixedHeight(self._H)
         self.setMouseTracking(True)
         self._count = 0
         self._fps = 30.0
@@ -138,11 +142,15 @@ class TimeRuler(QWidget):
         p.setPen(QPen(QColor(_ACCENT), 2))
         for x in (x0, x1):
             p.drawLine(QPointF(x, track_top), QPointF(x, h))
-        # grab-handle nubs
+        # in / out grips - a chunky bracket in the grip strip, offset outward so
+        # they don't sit on top of frame 0 / the last frame
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor(_ACCENT))
-        for x in (x0, x1):
-            p.drawRoundedRect(QRectF(x - 3, track_top, 6, 9), 2, 2)
+        gy0, gy1 = track_top, self._GRIP
+        p.drawPolygon(QPolygonF([QPointF(x0, gy0), QPointF(x0 + 9, gy0),
+                                 QPointF(x0, gy1)]))                 # in: ▸ at left edge
+        p.drawPolygon(QPolygonF([QPointF(x1, gy0), QPointF(x1 - 9, gy0),
+                                 QPointF(x1, gy1)]))                 # out: ◂ at right edge
 
         # ticks + labels (~1 label per 100 px, kept inside the widget)
         total_s = (self._count - 1) / self._fps
@@ -175,17 +183,27 @@ class TimeRuler(QWidget):
                                  QPointF(hx, track_top + 4)]))
 
     def mousePressEvent(self, e) -> None:  # noqa: N802
-        x = e.position().x()
-        if abs(x - self._x(self.in_point)) < 7:
-            self._drag = "in"
-        elif abs(x - self._x(self.out_point)) < 7:
-            self._drag = "out"
-        else:
-            self._drag = "head"
-            self.seek.emit(self._frame_at(x))
+        x, y = e.position().x(), e.position().y()
+        # only grab an in/out handle from the top grip strip - a click anywhere
+        # in the main track scrubs, even right at the ends
+        if y <= self._GRIP:
+            if abs(x - self._x(self.in_point)) < 12:
+                self._drag = "in"
+                return
+            if abs(x - self._x(self.out_point)) < 12:
+                self._drag = "out"
+                return
+        self._drag = "head"
+        self.seek.emit(self._frame_at(x))
 
     def mouseMoveEvent(self, e) -> None:  # noqa: N802
         if not self._drag:
+            x, y = e.position().x(), e.position().y()
+            near = (y <= self._GRIP and
+                    (abs(x - self._x(self.in_point)) < 12
+                     or abs(x - self._x(self.out_point)) < 12))
+            self.setCursor(Qt.CursorShape.SizeHorCursor if near
+                           else Qt.CursorShape.PointingHandCursor)
             return
         f = self._frame_at(e.position().x())
         if self._drag == "head":

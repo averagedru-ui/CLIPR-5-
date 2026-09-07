@@ -291,7 +291,8 @@ class MainWindow(QMainWindow):
         self._left_split.addWidget(_panel("Viewport", self._vp_stack))
         self._left_split.addWidget(_panel("Timeline", self.timeline))
         self._left_split.setStretchFactor(0, 1)
-        self._left_split.setSizes([560, 160])
+        self._left_split.setStretchFactor(1, 0)
+        self._left_split.setSizes([500, 250])
         self._left_split.setCollapsible(1, False)
         left = self._left_split
 
