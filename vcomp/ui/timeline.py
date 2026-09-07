@@ -270,6 +270,7 @@ class Timeline(QWidget):
     inOutChanged = Signal(int, int)
     playingChanged = Signal(bool)
     audioChanged = Signal()          # mute / solo state changed
+    playFrom = Signal(float)         # playback (re)started at this many seconds
 
     def __init__(self) -> None:
         super().__init__()
@@ -466,6 +467,7 @@ class Timeline(QWidget):
                 self.seek(self.in_point)
             self._timer.setInterval(max(8, int(1000.0 / (self._fps * 2.0))))
             self._timer.start()
+            self.playFrom.emit(self._play_f0 / self._fps)
         else:
             self._timer.stop()
             self.ruler.set_frame(self._frame)
@@ -493,6 +495,7 @@ class Timeline(QWidget):
                 self._play_t0 = time.monotonic()
                 self._play_f0 = self.in_point
                 target = self.in_point
+                self.playFrom.emit(self.in_point / self._fps)
             else:
                 self.seek(self.out_point)
                 self.set_playing(False)

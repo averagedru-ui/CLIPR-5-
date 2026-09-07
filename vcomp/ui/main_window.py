@@ -94,6 +94,9 @@ class MainWindow(QMainWindow):
         self.fetcher.frameReady.connect(self._on_frame)
         self.fetcher.failed.connect(self._on_fail)
 
+        from vcomp.media.audio_player import AudioPlayer
+        self.audio = AudioPlayer(self)
+
         self.renderer = RenderWorker()
         self.renderer.set_graph(self.graph)
         self.renderer.ready.connect(self._on_gl_ready)
@@ -190,6 +193,11 @@ class MainWindow(QMainWindow):
         self.timeline = Timeline()
         self.timeline.frameChanged.connect(self._request_frame)
         self.timeline.playingChanged.connect(self._on_play_state)
+        self.timeline.playFrom.connect(self._on_play_from)
+        self.timeline.playingChanged.connect(
+            lambda on: None if on else self.audio.stop())
+        self.timeline.audioChanged.connect(
+            lambda: self.audio.set_active_tracks(self.timeline.active_audio_tracks()))
 
         self.canvas = NodeCanvas(self.graph, self.undo_stack)
         self.canvas.nodeSelected.connect(self._on_node_selected)
@@ -317,6 +325,10 @@ class MainWindow(QMainWindow):
         self.act_fullq = QAction("Full-Quality Preview", self, checkable=True)
         self.act_fullq.toggled.connect(lambda v: self.tb_fullq.setChecked(v))
         self._view_menu.addAction(self.act_fullq)
+        self.act_audio = QAction("Play Audio", self, checkable=True)
+        self.act_audio.setChecked(True)
+        self.act_audio.toggled.connect(self.audio.set_enabled)
+        self._view_menu.addAction(self.act_audio)
 
     def _toggle_full_quality(self, on: bool) -> None:
         self.renderer.lock_full_quality = bool(on)
@@ -671,6 +683,8 @@ class MainWindow(QMainWindow):
         self.settings.save()
         self.timeline.set_media(info.frame_count, info.fps)
         self.timeline.set_audio_tracks(info.audio_tracks, info.path)
+        if info.has_audio:
+            self.audio.load(info.path, self.timeline.active_audio_tracks())
         dw, dh = info.display_width, info.display_height
         for node in self.graph.clip_source_nodes():
             node.params["file_path"].set(info.path)
@@ -726,6 +740,14 @@ class MainWindow(QMainWindow):
         frames = ({n.id: self._last_frame for n in self.graph.clip_source_nodes()}
                   if self._last_frame is not None else {})
         self.renderer.submit(idx, frames, idx / fps if fps else 0.0)
+
+    def _on_play_from(self, secs: float) -> None:
+        clip = next(iter(self.graph.clip_source_nodes()), None)
+        speed = float(clip.params["speed"].value) if clip else 1.0
+        if abs(speed - 1.0) > 1e-3:
+            self.audio.stop()          # realtime atempo not implemented
+            return
+        self.audio.play(secs)
 
     def _on_play_state(self, playing: bool) -> None:
         self.renderer.playing = bool(playing)
@@ -792,6 +814,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: N802
         self.timeline.set_playing(False)
         self.timeline.stop_workers()
+        self.audio.release()
         self._autosave.stop()
         self.fetcher.stop()
         self.renderer.stop()

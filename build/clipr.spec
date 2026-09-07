@@ -18,6 +18,7 @@ hiddenimports = [
     "av", "moderngl", "glcontext", "Qt",
     "PySide6.QtSvg", "PySide6.QtSvgWidgets", "PySide6.QtXml",
     "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "PySide6.QtNetwork",
+    "PySide6.QtMultimedia",
 ]
 hiddenimports += collect_submodules("NodeGraphQt")
 
