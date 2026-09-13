@@ -1,0 +1,125 @@
+[
+  {
+    "file": "Apex Legends - Corners.vctpl",
+    "name": "Apex Legends - Corners",
+    "game": "Apex Legends",
+    "tags": [
+      "fps",
+      "apex",
+      "br"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale."
+  },
+  {
+    "file": "Arc Raiders - Corners.vctpl",
+    "name": "Arc Raiders - Corners",
+    "game": "Arc Raiders",
+    "tags": [
+      "pve",
+      "arcraiders"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale."
+  },
+  {
+    "file": "Battlefield - Minimap _ Tickets.vctpl",
+    "name": "Battlefield - Minimap + Tickets",
+    "game": "Battlefield",
+    "tags": [
+      "fps",
+      "battlefield"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale."
+  },
+  {
+    "file": "Battlefield 6 - Range (measured).vctpl",
+    "name": "Battlefield 6 - Range (measured)",
+    "game": "Battlefield 6",
+    "tags": [
+      "fps",
+      "battlefield",
+      "bf6",
+      "1080p"
+    ],
+    "notes": "Regions traced from a real 1920x1080 BF6 frame (minimap BL, ammo BR, weapon-select, right-edge gadgets). Killfeed is a standard-position guess - nudge it once you have a frame with a kill."
+  },
+  {
+    "file": "Blur Background _ Centered Gameplay.vctpl",
+    "name": "Blur Background + Centered Gameplay",
+    "game": "",
+    "tags": [
+      "minimal"
+    ],
+    "notes": "No HUD regions - the simplest start. Webcam overlay included but disabled."
+  },
+  {
+    "file": "Fortnite - Minimap _ Materials.vctpl",
+    "name": "Fortnite - Minimap + Materials",
+    "game": "Fortnite",
+    "tags": [
+      "br",
+      "fortnite"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale."
+  },
+  {
+    "file": "Generic Corners.vctpl",
+    "name": "Generic Corners",
+    "game": "",
+    "tags": [
+      "generic"
+    ],
+    "notes": "Four empty corner regions + a disabled webcam overlay."
+  },
+  {
+    "file": "Overwatch - Ults _ Health.vctpl",
+    "name": "Overwatch - Ults + Health",
+    "game": "Overwatch",
+    "tags": [
+      "fps",
+      "overwatch",
+      "hero"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale."
+  },
+  {
+    "file": "R6 Siege - Ping _ Ammo.vctpl",
+    "name": "R6 Siege - Ping + Ammo",
+    "game": "R6 Siege",
+    "tags": [
+      "fps",
+      "siege"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale."
+  },
+  {
+    "file": "Rocket League - Boost _ Clock.vctpl",
+    "name": "Rocket League - Boost + Clock",
+    "game": "Rocket League",
+    "tags": [
+      "sports",
+      "rl"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale."
+  },
+  {
+    "file": "The Finals - Cashout _ Ammo.vctpl",
+    "name": "The Finals - Cashout + Ammo",
+    "game": "The Finals",
+    "tags": [
+      "fps",
+      "thefinals"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale."
+  },
+  {
+    "file": "Valorant - Top HUD _ Minimap.vctpl",
+    "name": "Valorant - Top HUD + Minimap",
+    "game": "Valorant",
+    "tags": [
+      "fps",
+      "valorant",
+      "1080p"
+    ],
+    "notes": "Generic HUD positions - refine per your UI scale."
+  }
+]

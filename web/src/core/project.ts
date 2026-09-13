@@ -27,12 +27,15 @@ export function addRegion(p: Project): GraphNode {
 
 const DB_NAME = "clipr-mobile";
 const STORE = "projects";
+const TPL_STORE = "templates";
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(DB_NAME, 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore(STORE);
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+      if (!db.objectStoreNames.contains(TPL_STORE)) db.createObjectStore(TPL_STORE);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -66,5 +69,45 @@ export async function listProjectKeys(): Promise<string[]> {
     const req = tx.objectStore(STORE).getAllKeys();
     req.onsuccess = () => resolve(req.result as string[]);
     req.onerror = () => reject(req.error);
+  });
+}
+
+export async function saveTemplateLocal(name: string, p: Project): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(TPL_STORE, "readwrite");
+    tx.objectStore(TPL_STORE).put(JSON.stringify(p), name);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function loadTemplateLocal(name: string): Promise<Project | null> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(TPL_STORE, "readonly");
+    const req = tx.objectStore(TPL_STORE).get(name);
+    req.onsuccess = () => resolve(req.result ? JSON.parse(req.result) : null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function listLocalTemplateNames(): Promise<string[]> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(TPL_STORE, "readonly");
+    const req = tx.objectStore(TPL_STORE).getAllKeys();
+    req.onsuccess = () => resolve(req.result as string[]);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteTemplateLocal(name: string): Promise<void> {
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(TPL_STORE, "readwrite");
+    tx.objectStore(TPL_STORE).delete(name);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 }

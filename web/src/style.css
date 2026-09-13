@@ -115,6 +115,36 @@ html, body {
   text-align: center;
 }
 
+.scrub-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+}
+.scrub-wrap input[type="range"] { width: 100%; position: relative; z-index: 1; background: transparent; }
+.trim-overlay {
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.trimbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 8px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.trimbar .time-label { min-width: auto; }
+
 .nodepanel {
   flex: 0 0 auto;
   height: 42vh;
@@ -194,5 +224,60 @@ html, body {
   border-radius: 999px;
   pointer-events: none;
 }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 50;
+}
+.modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 78vh;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+.modal-head .del { cursor: pointer; opacity: 0.7; }
+.modal-body { flex: 1 1 auto; overflow-y: auto; padding: 6px 8px; }
+.modal-foot { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+.modal-foot .btn { flex: 1 1 auto; }
+
+.tpl-group-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding: 10px 8px 4px;
+}
+.tpl-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.tpl-item:active { background: var(--panel2); }
+.tpl-item .name { font-size: 14px; font-weight: 500; }
+.tpl-item .meta { font-size: 11px; color: var(--text-dim); }
+.tpl-item .tpl-del { margin-left: auto; opacity: 0.6; padding: 4px 6px; }
+.tpl-empty { padding: 14px 8px; color: var(--text-dim); font-size: 13px; }
 
 .hidden { display: none !important; }

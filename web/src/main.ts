@@ -1,7 +1,10 @@
 import "./style.css";
 import { Compositor } from "./render/compositor";
 import { NodeGraph } from "./ui/nodegraph";
-import { newProject, addRegion, saveProjectLocal, loadProjectLocal } from "./core/project";
+import {
+  newProject, addRegion, saveProjectLocal, loadProjectLocal,
+  saveTemplateLocal, loadTemplateLocal, listLocalTemplateNames, deleteTemplateLocal,
+} from "./core/project";
 import { importVctpl } from "./core/vctpl";
 import { recordComposite, extForMime } from "./export";
 import type { Project } from "./core/types";
@@ -22,8 +25,18 @@ app.innerHTML = `
   </div>
   <div class="transport">
     <button class="btn icon" id="btnPlay" disabled>▶</button>
-    <input type="range" id="scrub" min="0" max="1000" value="0" disabled />
+    <div class="scrub-wrap">
+      <div class="trim-overlay" id="trimOverlay"></div>
+      <input type="range" id="scrub" min="0" max="1000" value="0" disabled />
+    </div>
     <span class="time-label" id="timeLabel">0:00 / 0:00</span>
+  </div>
+  <div class="trimbar">
+    <button class="btn icon" id="btnMarkIn" disabled title="Set in point to playhead">[ In</button>
+    <span class="time-label" id="trimLabel">0:00 – 0:00</span>
+    <button class="btn icon" id="btnMarkOut" disabled title="Set out point to playhead">Out ]</button>
+    <span class="spacer"></span>
+    <button class="btn icon" id="btnTrimReset" disabled title="Reset trim to full clip">↺</button>
   </div>
   <div class="nodepanel" id="nodePanel">
     <div class="nodecanvas" id="nodeCanvas">
@@ -37,6 +50,19 @@ app.innerHTML = `
   </div>
   <input type="file" id="fileVideo" accept="video/*" class="hidden" />
   <input type="file" id="fileTpl" accept=".vctpl,application/json" class="hidden" />
+  <div class="modal-backdrop hidden" id="tplModal">
+    <div class="modal">
+      <div class="modal-head">
+        <span>Templates</span>
+        <span class="del" id="tplClose">✕</span>
+      </div>
+      <div class="modal-body" id="tplList"></div>
+      <div class="modal-foot">
+        <button class="btn" id="btnSaveAsTpl">Save current as template</button>
+        <button class="btn" id="btnImportFile">Import .vctpl file</button>
+      </div>
+    </div>
+  </div>
 `;
 
 const canvas = document.getElementById("previewCanvas") as HTMLCanvasElement;
@@ -50,6 +76,24 @@ const nodePanel = document.getElementById("nodePanel") as HTMLDivElement;
 const nodeCanvasEl = document.getElementById("nodeCanvas") as HTMLDivElement;
 const fileVideo = document.getElementById("fileVideo") as HTMLInputElement;
 const fileTpl = document.getElementById("fileTpl") as HTMLInputElement;
+const btnMarkIn = document.getElementById("btnMarkIn") as HTMLButtonElement;
+const btnMarkOut = document.getElementById("btnMarkOut") as HTMLButtonElement;
+const btnTrimReset = document.getElementById("btnTrimReset") as HTMLButtonElement;
+const trimLabel = document.getElementById("trimLabel") as HTMLSpanElement;
+const trimOverlay = document.getElementById("trimOverlay") as HTMLDivElement;
+
+let trimIn = 0;
+let trimOut = 0;
+
+function updateTrimUi() {
+  trimLabel.textContent = `${fmtTime(trimIn)} – ${fmtTime(trimOut)}`;
+  if (video.duration) {
+    const l = (trimIn / video.duration) * 100;
+    const r = (1 - trimOut / video.duration) * 100;
+    trimOverlay.style.left = `${l}%`;
+    trimOverlay.style.right = `${r}%`;
+  }
+}
 
 let project: Project = newProject();
 const compositor = new Compositor(canvas);
@@ -114,25 +158,118 @@ fileVideo.addEventListener("change", async () => {
   btnPlay.disabled = false;
   scrub.disabled = false;
   btnExport.disabled = false;
+  btnMarkIn.disabled = false;
+  btnMarkOut.disabled = false;
+  btnTrimReset.disabled = false;
+  trimIn = 0;
+  trimOut = video.duration;
+  updateTrimUi();
   video.currentTime = 0.01;
   drawOnce();
   updateTransport();
 });
 
-document.getElementById("btnTpl")!.addEventListener("click", () => fileTpl.click());
+interface BundledTplEntry { file: string; name: string; game: string; tags: string[]; notes: string; }
+let bundledTpls: BundledTplEntry[] | null = null;
+
+const tplModal = document.getElementById("tplModal") as HTMLDivElement;
+const tplList = document.getElementById("tplList") as HTMLDivElement;
+
+async function openTemplateModal() {
+  tplModal.classList.remove("hidden");
+  tplList.innerHTML = `<div class="tpl-empty">Loading…</div>`;
+  if (!bundledTpls) {
+    try {
+      const res = await fetch("templates/index.json");
+      bundledTpls = await res.json();
+    } catch {
+      bundledTpls = [];
+    }
+  }
+  const mine = await listLocalTemplateNames();
+  tplList.innerHTML = "";
+
+  const mineTitle = document.createElement("div");
+  mineTitle.className = "tpl-group-title";
+  mineTitle.textContent = "My templates";
+  tplList.appendChild(mineTitle);
+  if (!mine.length) {
+    const empty = document.createElement("div");
+    empty.className = "tpl-empty";
+    empty.textContent = "None saved yet on this device.";
+    tplList.appendChild(empty);
+  }
+  for (const name of mine) {
+    const item = document.createElement("div");
+    item.className = "tpl-item";
+    item.innerHTML = `<div><div class="name">${escapeHtml(name)}</div><div class="meta">saved on this device</div></div><span class="tpl-del">✕</span>`;
+    item.addEventListener("click", async (e) => {
+      if ((e.target as HTMLElement).classList.contains("tpl-del")) {
+        await deleteTemplateLocal(name);
+        openTemplateModal();
+        return;
+      }
+      const p = await loadTemplateLocal(name);
+      if (p) applyProject(p);
+      tplModal.classList.add("hidden");
+    });
+    tplList.appendChild(item);
+  }
+
+  const builtinTitle = document.createElement("div");
+  builtinTitle.className = "tpl-group-title";
+  builtinTitle.textContent = "Built-in (from desktop CLIPR)";
+  tplList.appendChild(builtinTitle);
+  for (const t of bundledTpls ?? []) {
+    const item = document.createElement("div");
+    item.className = "tpl-item";
+    item.innerHTML = `<div><div class="name">${escapeHtml(t.name)}</div><div class="meta">${escapeHtml(t.game || t.notes || "")}</div></div>`;
+    item.addEventListener("click", async () => {
+      const res = await fetch(`templates/${encodeURIComponent(t.file)}`);
+      const json = await res.json();
+      applyProject(importVctpl(json, project.canvas_w, project.canvas_h));
+      tplModal.classList.add("hidden");
+    });
+    tplList.appendChild(item);
+  }
+}
+
+function applyProject(p: Project) {
+  project = p;
+  graph.setProject(project);
+  drawOnce();
+}
+
+function escapeHtml(s: string): string {
+  const div = document.createElement("div");
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+document.getElementById("btnTpl")!.addEventListener("click", openTemplateModal);
+document.getElementById("tplClose")!.addEventListener("click", () => tplModal.classList.add("hidden"));
+tplModal.addEventListener("click", (e) => { if (e.target === tplModal) tplModal.classList.add("hidden"); });
+
+document.getElementById("btnImportFile")!.addEventListener("click", () => fileTpl.click());
 fileTpl.addEventListener("change", async () => {
   const f = fileTpl.files?.[0];
   if (!f) return;
   const text = await f.text();
   try {
     const json = JSON.parse(text);
-    project = importVctpl(json, project.canvas_w, project.canvas_h);
-    graph.setProject(project);
-    drawOnce();
+    applyProject(importVctpl(json, project.canvas_w, project.canvas_h));
+    tplModal.classList.add("hidden");
   } catch (err) {
     alert(`Couldn't read template: ${(err as Error).message}`);
   }
   fileTpl.value = "";
+});
+
+document.getElementById("btnSaveAsTpl")!.addEventListener("click", async () => {
+  const name = prompt("Save current layout as:", project.name || "My template");
+  if (!name) return;
+  await saveTemplateLocal(name, project);
+  openTemplateModal();
 });
 
 btnPlay.addEventListener("click", () => {
@@ -152,6 +289,22 @@ scrub.addEventListener("input", () => {
 });
 scrub.addEventListener("change", () => { scrubbing = false; });
 video.addEventListener("seeked", () => { if (!scrubbing) drawOnce(); });
+
+btnMarkIn.addEventListener("click", () => {
+  trimIn = Math.min(video.currentTime, trimOut - 0.05);
+  trimIn = Math.max(0, trimIn);
+  updateTrimUi();
+});
+btnMarkOut.addEventListener("click", () => {
+  trimOut = Math.max(video.currentTime, trimIn + 0.05);
+  trimOut = Math.min(video.duration, trimOut);
+  updateTrimUi();
+});
+btnTrimReset.addEventListener("click", () => {
+  trimIn = 0;
+  trimOut = video.duration;
+  updateTrimUi();
+});
 
 btnNodes.addEventListener("click", () => {
   nodePanel.classList.toggle("open");
@@ -175,11 +328,11 @@ btnExport.addEventListener("click", async () => {
   if (!hasVideo) return;
   btnExport.disabled = true;
   const originalText = btnExport.textContent;
-  video.currentTime = 0;
+  video.currentTime = trimIn;
   video.muted = false;
   await new Promise((r) => (video.onseeked = r));
   await video.play();
-  const durationSec = video.duration;
+  const durationSec = trimOut - trimIn;
   try {
     const blob = await recordComposite(canvas, video, {
       fps: 30,

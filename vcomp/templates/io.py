@@ -93,7 +93,43 @@ def save_template(tpl: Template, path: str | Path) -> Path:
     path = Path(path)
     path.write_text(json.dumps(tpl.to_dict(), indent=2), encoding="utf-8")
     tpl.path = path
+    _mirror_to_mobile(path)
     return path
+
+
+def _mirror_to_mobile(path: Path) -> None:
+    """Copy a saved .vctpl into web/public/templates so the mobile PWA picks
+    it up on its next deploy - only when running from a dev checkout that
+    has the web/ client alongside it (a no-op for a frozen exe with no repo)."""
+    if paths.is_frozen():
+        return
+    web_dir = paths.resource_root() / "web" / "public" / "templates"
+    if not web_dir.parent.exists():
+        return
+    try:
+        web_dir.mkdir(parents=True, exist_ok=True)
+        (web_dir / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        _rebuild_mobile_index(web_dir)
+    except OSError:
+        log.warning("could not mirror template %s to web/public/templates", path.name)
+
+
+def _rebuild_mobile_index(web_dir: Path) -> None:
+    entries = []
+    for p in sorted(web_dir.glob("*.vctpl")):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        meta = data.get("meta", {})
+        entries.append({
+            "file": p.name,
+            "name": meta.get("name", p.stem),
+            "game": meta.get("game", ""),
+            "tags": meta.get("tags", []),
+            "notes": meta.get("notes", ""),
+        })
+    (web_dir / "index.json").write_text(json.dumps(entries, indent=2), encoding="utf-8")
 
 
 def load_template(path: str | Path) -> Template:
