@@ -1,0 +1,12 @@
+main.py
+requirements.txt
+pytest.ini
+vcomp/
+tests/
+vendor/
+assets/
+build/
+dist/
+.venv/
+.pytest_cache/
+__pycache__/
