@@ -107,10 +107,16 @@ video.muted = false;
 video.preload = "auto";
 // iOS WebKit (Safari/Edge/Chrome all run WebKit there) is unreliable about
 // firing loadedmetadata/decoding frames for a <video> that's never attached
-// to the DOM - keep it real but invisible rather than detached.
+// to the DOM - keep it real but invisible rather than detached. It also
+// needs a real (non-near-zero) rendered size: some hardware-decode paths
+// silently stop producing actual frame data (audio keeps playing, video
+// stays black) when the element's box is ~0x0, so this is off-screen via
+// position, not shrunk to nothing.
 video.style.position = "fixed";
-video.style.width = "1px";
-video.style.height = "1px";
+video.style.left = "-9999px";
+video.style.top = "0";
+video.style.width = "480px";
+video.style.height = "270px";
 video.style.opacity = "0";
 video.style.pointerEvents = "none";
 document.body.appendChild(video);
