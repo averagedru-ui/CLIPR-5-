@@ -105,6 +105,15 @@ const video = document.createElement("video");
 video.playsInline = true;
 video.muted = false;
 video.preload = "auto";
+// iOS WebKit (Safari/Edge/Chrome all run WebKit there) is unreliable about
+// firing loadedmetadata/decoding frames for a <video> that's never attached
+// to the DOM - keep it real but invisible rather than detached.
+video.style.position = "fixed";
+video.style.width = "1px";
+video.style.height = "1px";
+video.style.opacity = "0";
+video.style.pointerEvents = "none";
+document.body.appendChild(video);
 
 let rafId = 0;
 let hasVideo = false;
@@ -134,6 +143,17 @@ function loop() {
   rafId = requestAnimationFrame(loop);
 }
 rafId = requestAnimationFrame(loop);
+
+function mediaErrorText(err: MediaError | null): string {
+  if (!err) return "unknown decode error";
+  switch (err.code) {
+    case MediaError.MEDIA_ERR_ABORTED: return "load was aborted";
+    case MediaError.MEDIA_ERR_NETWORK: return "network error while reading the file";
+    case MediaError.MEDIA_ERR_DECODE: return "the file is corrupt or uses an unsupported codec";
+    case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED: return "this browser can't play that format/codec (common with HEVC .mov or unusual containers - try re-exporting as H.264 mp4)";
+    default: return err.message || "unknown decode error";
+  }
+}
 
 function fmtTime(s: number): string {
   if (!isFinite(s)) return "0:00";
@@ -170,9 +190,14 @@ fileVideo.addEventListener("change", async () => {
   try {
     const url = URL.createObjectURL(f);
     video.src = url;
+    video.load();
     await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(video.error ?? new Error("couldn't load that video"));
+      const timeout = setTimeout(
+        () => reject(new Error("timed out - the file may still be downloading from Drive/iCloud, or the format isn't supported on this browser")),
+        20_000
+      );
+      video.onloadedmetadata = () => { clearTimeout(timeout); resolve(); };
+      video.onerror = () => { clearTimeout(timeout); reject(new Error(mediaErrorText(video.error))); };
     });
     hasVideo = true;
     emptyState.classList.add("hidden");
@@ -192,6 +217,7 @@ fileVideo.addEventListener("change", async () => {
   } catch (err) {
     alert(`Couldn't load that video: ${(err as Error).message ?? err}`);
   } finally {
+    fileVideo.value = "";
     hideLoading("load");
   }
 });
