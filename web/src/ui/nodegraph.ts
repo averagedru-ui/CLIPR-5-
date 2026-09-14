@@ -20,6 +20,8 @@ export class NodeGraph {
   private zoom = 0.85;
   private dragCard: { id: string; startX: number; startY: number; nodeX: number; nodeY: number } | null = null;
   private panDrag: { startX: number; startY: number; panX: number; panY: number } | null = null;
+  private pointers = new Map<number, { x: number; y: number }>();
+  private pinch: { startDist: number; startZoom: number; startPanX: number; startPanY: number } | null = null;
   selectedId: string | null = null;
 
   constructor(private root: HTMLElement, private project: Project, private cb: NodeGraphCallbacks) {
@@ -28,8 +30,8 @@ export class NodeGraph {
     this.root.appendChild(this.layer);
     this.root.addEventListener("pointerdown", (e) => this.onRootPointerDown(e));
     this.root.addEventListener("pointermove", (e) => this.onPointerMove(e));
-    this.root.addEventListener("pointerup", () => this.onPointerUp());
-    this.root.addEventListener("pointercancel", () => this.onPointerUp());
+    this.root.addEventListener("pointerup", (e) => this.onPointerUp(e));
+    this.root.addEventListener("pointercancel", (e) => this.onPointerUp(e));
     this.root.addEventListener("wheel", (e) => this.onWheel(e), { passive: false });
     this.render();
   }
@@ -51,6 +53,16 @@ export class NodeGraph {
   }
 
   private onRootPointerDown(e: PointerEvent) {
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pointers.size >= 2) {
+      // Second finger landed - abandon any single-finger card drag/pan and
+      // start a pinch instead.
+      this.dragCard = null;
+      this.panDrag = null;
+      this.startPinch();
+      return;
+    }
+
     const target = e.target as HTMLElement;
     const card = target.closest(".node-card") as HTMLElement | null;
     if (card) {
@@ -74,7 +86,47 @@ export class NodeGraph {
     this.panDrag = { startX: e.clientX, startY: e.clientY, panX: this.panX, panY: this.panY };
   }
 
+  private twoPointers(): [{ x: number; y: number }, { x: number; y: number }] | null {
+    if (this.pointers.size < 2) return null;
+    const pts = [...this.pointers.values()];
+    return [pts[0], pts[1]];
+  }
+
+  private startPinch() {
+    const pts = this.twoPointers();
+    if (!pts) return;
+    const [a, b] = pts;
+    this.pinch = {
+      startDist: Math.hypot(b.x - a.x, b.y - a.y) || 1,
+      startZoom: this.zoom,
+      startPanX: this.panX,
+      startPanY: this.panY,
+    };
+  }
+
   private onPointerMove(e: PointerEvent) {
+    if (this.pointers.has(e.pointerId)) {
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    if (this.pinch) {
+      const pts = this.twoPointers();
+      if (!pts) return;
+      const [a, b] = pts;
+      const dist = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const rect = this.root.getBoundingClientRect();
+      const midX = (a.x + b.x) / 2 - rect.left;
+      const midY = (a.y + b.y) / 2 - rect.top;
+      const scale = dist / this.pinch.startDist;
+      const newZoom = Math.min(1.6, Math.max(0.4, this.pinch.startZoom * scale));
+      // keep the point under the fingers fixed on screen while zooming
+      const contentX = (midX - this.pinch.startPanX) / this.pinch.startZoom;
+      const contentY = (midY - this.pinch.startPanY) / this.pinch.startZoom;
+      this.zoom = newZoom;
+      this.panX = midX - contentX * newZoom;
+      this.panY = midY - contentY * newZoom;
+      this.applyTransform();
+      return;
+    }
     if (this.dragCard) {
       const dx = (e.clientX - this.dragCard.startX) / this.zoom;
       const dy = (e.clientY - this.dragCard.startY) / this.zoom;
@@ -92,7 +144,9 @@ export class NodeGraph {
     }
   }
 
-  private onPointerUp() {
+  private onPointerUp(e: PointerEvent) {
+    this.pointers.delete(e.pointerId);
+    if (this.pointers.size < 2) this.pinch = null;
     this.dragCard = null;
     this.panDrag = null;
   }
