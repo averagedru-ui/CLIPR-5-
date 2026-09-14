@@ -52,7 +52,7 @@ app.innerHTML = `
       <button class="btn" id="btnSaveProj">Save</button>
     </div>
   </div>
-  <input type="file" id="fileVideo" accept="video/*,.mp4,.mov,.mkv,.webm,.m4v,.avi" class="hidden" />
+  <input type="file" id="fileVideo" class="hidden" />
   <input type="file" id="fileTpl" accept=".vctpl,application/json" class="hidden" />
   <div class="modal-backdrop hidden" id="tplModal">
     <div class="modal">
