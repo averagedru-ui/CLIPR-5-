@@ -80,13 +80,16 @@ export async function pickFromDrive(onDownloadStart?: () => void): Promise<Drive
   const fileId = await new Promise<string | null>((resolve, reject) => {
     // DOCS_VIDEOS is a flat "every video in Drive" search with no folder
     // nav - useless once there's more than a handful of clips. DOCS is the
-    // real My Drive browser (folders navigable via breadcrumbs), filtered
-    // to video files; DOCS_VIDEOS stays as a second tab for a quick flat
-    // search when you already know the filename.
+    // real My Drive browser (folders navigable via breadcrumbs); DOCS_VIDEOS
+    // stays as a second tab for a quick flat search when you already know
+    // the filename. Deliberately NOT calling setMimeTypes here - Picker's
+    // DOCS view drops real folder-tree navigation and turns into a flat
+    // "search everywhere for matches" list the moment a mimeType filter is
+    // applied, which is the exact "listing every folder/subfolder
+    // individually" symptom this was fixing.
     const folderView = new google.picker.DocsView(google.picker.ViewId.DOCS)
       .setIncludeFolders(true)
-      .setSelectFolderEnabled(false)
-      .setMimeTypes("video/*");
+      .setSelectFolderEnabled(false);
     const flatView = new google.picker.DocsView(google.picker.ViewId.DOCS_VIDEOS)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
