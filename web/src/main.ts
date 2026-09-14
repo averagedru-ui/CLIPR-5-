@@ -215,7 +215,11 @@ fileVideo.addEventListener("change", async () => {
     drawOnce();
     updateTransport();
   } catch (err) {
-    alert(`Couldn't load that video: ${(err as Error).message ?? err}`);
+    const mb = (f.size / (1024 * 1024)).toFixed(1);
+    alert(
+      `Couldn't load that video: ${(err as Error).message ?? err}\n\n` +
+      `File: ${f.name}\nReported type: ${f.type || "(none)"}\nSize: ${mb} MB`
+    );
   } finally {
     fileVideo.value = "";
     hideLoading("load");
