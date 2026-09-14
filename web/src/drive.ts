@@ -78,11 +78,21 @@ export async function pickFromDrive(onDownloadStart?: () => void): Promise<Drive
   await ensurePicker();
 
   const fileId = await new Promise<string | null>((resolve, reject) => {
-    const view = new google.picker.DocsView(google.picker.ViewId.DOCS_VIDEOS)
+    // DOCS_VIDEOS is a flat "every video in Drive" search with no folder
+    // nav - useless once there's more than a handful of clips. DOCS is the
+    // real My Drive browser (folders navigable via breadcrumbs), filtered
+    // to video files; DOCS_VIDEOS stays as a second tab for a quick flat
+    // search when you already know the filename.
+    const folderView = new google.picker.DocsView(google.picker.ViewId.DOCS)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false)
+      .setMimeTypes("video/*");
+    const flatView = new google.picker.DocsView(google.picker.ViewId.DOCS_VIDEOS)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
     const picker = new google.picker.PickerBuilder()
-      .addView(view)
+      .addView(folderView)
+      .addView(flatView)
       .setOAuthToken(token)
       .setDeveloperKey(GOOGLE_API_KEY)
       .setCallback((data: any) => {
