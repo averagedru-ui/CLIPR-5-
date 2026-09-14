@@ -22,6 +22,10 @@ app.innerHTML = `
   <div class="preview-wrap">
     <canvas id="previewCanvas"></canvas>
     <div class="empty-state hidden" id="emptyState">Load a video to start reframing.</div>
+    <div class="loading-overlay hidden" id="loadingOverlay">
+      <div class="spinner"></div>
+      <div class="loading-label" id="loadingLabel">Loading video…</div>
+    </div>
   </div>
   <div class="transport">
     <button class="btn icon" id="btnPlay" disabled>▶</button>
@@ -144,30 +148,59 @@ function updateTransport() {
   timeLabel.textContent = `${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
 }
 
+const loadingOverlay = document.getElementById("loadingOverlay") as HTMLDivElement;
+const loadingLabel = document.getElementById("loadingLabel") as HTMLDivElement;
+const loadingReasons = new Set<string>();
+
+function showLoading(reason: string, label: string) {
+  loadingReasons.add(reason);
+  loadingLabel.textContent = label;
+  loadingOverlay.classList.remove("hidden");
+}
+function hideLoading(reason: string) {
+  loadingReasons.delete(reason);
+  if (loadingReasons.size === 0) loadingOverlay.classList.add("hidden");
+}
+
 document.getElementById("btnLoad")!.addEventListener("click", () => fileVideo.click());
 fileVideo.addEventListener("change", async () => {
   const f = fileVideo.files?.[0];
   if (!f) return;
-  const url = URL.createObjectURL(f);
-  video.src = url;
-  await new Promise<void>((resolve) => {
-    video.onloadedmetadata = () => resolve();
-  });
-  hasVideo = true;
-  emptyState.classList.add("hidden");
-  btnPlay.disabled = false;
-  scrub.disabled = false;
-  btnExport.disabled = false;
-  btnMarkIn.disabled = false;
-  btnMarkOut.disabled = false;
-  btnTrimReset.disabled = false;
-  trimIn = 0;
-  trimOut = video.duration;
-  updateTrimUi();
-  video.currentTime = 0.01;
-  drawOnce();
-  updateTransport();
+  showLoading("load", `Loading ${f.name}…`);
+  try {
+    const url = URL.createObjectURL(f);
+    video.src = url;
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(video.error ?? new Error("couldn't load that video"));
+    });
+    hasVideo = true;
+    emptyState.classList.add("hidden");
+    btnPlay.disabled = false;
+    scrub.disabled = false;
+    btnExport.disabled = false;
+    btnMarkIn.disabled = false;
+    btnMarkOut.disabled = false;
+    btnTrimReset.disabled = false;
+    trimIn = 0;
+    trimOut = video.duration;
+    updateTrimUi();
+    video.currentTime = 0.01;
+    await new Promise<void>((resolve) => { video.onseeked = () => resolve(); });
+    drawOnce();
+    updateTransport();
+  } catch (err) {
+    alert(`Couldn't load that video: ${(err as Error).message ?? err}`);
+  } finally {
+    hideLoading("load");
+  }
 });
+
+// Buffering during playback/seek (relevant for large or cloud-sourced clips)
+// reuses the same overlay so a stall never looks like a frozen app.
+video.addEventListener("waiting", () => showLoading("buffer", "Buffering…"));
+video.addEventListener("playing", () => hideLoading("buffer"));
+video.addEventListener("canplay", () => hideLoading("buffer"));
 
 interface BundledTplEntry { file: string; name: string; game: string; tags: string[]; notes: string; }
 let bundledTpls: BundledTplEntry[] | null = null;
