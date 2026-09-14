@@ -305,4 +305,24 @@ html, body {
 .tpl-item .tpl-del { margin-left: auto; opacity: 0.6; padding: 4px 6px; }
 .tpl-empty { padding: 14px 8px; color: var(--text-dim); font-size: 13px; }
 
+.drive-crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.drive-crumb { color: var(--accent); cursor: pointer; }
+.drive-crumb.current { color: var(--text-dim); cursor: default; }
+.drive-crumb-sep { color: var(--text-dim); }
+.drive-status {
+  padding: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
 .hidden { display: none !important; }

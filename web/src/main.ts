@@ -7,7 +7,8 @@ import {
 } from "./core/project";
 import { importVctpl } from "./core/vctpl";
 import { recordComposite, extForMime } from "./export";
-import { pickFromDrive, driveConfigured } from "./drive";
+import { driveConfigured, getAccessToken, handleAuthRedirectReturn } from "./drive";
+import { DriveBrowser } from "./ui/drive-browser";
 import type { Project } from "./core/types";
 
 const app = document.getElementById("app")!;
@@ -243,17 +244,30 @@ if (!driveConfigured()) {
   btnDrive.title = "Drive isn't set up yet";
   btnDrive.style.opacity = "0.5";
 }
-btnDrive.addEventListener("click", async () => {
-  try {
-    const picked = await pickFromDrive(() => showLoading("drive-dl", "Downloading from Drive…"));
-    hideLoading("drive-dl");
-    if (!picked) return;
-    await loadVideoBlob(picked.blob, picked.name);
-  } catch (err) {
-    hideLoading("drive-dl");
-    alert(`Google Drive: ${(err as Error).message}`);
+
+async function openDriveBrowser() {
+  if (!driveConfigured()) {
+    alert("Drive isn't set up yet (missing Google Client ID)");
+    return;
   }
-});
+  const token = getAccessToken();
+  if (!token) return; // getAccessToken() already started a redirect to sign in
+  const browser = new DriveBrowser(token, () => showLoading("drive-dl", "Downloading from Drive…"));
+  const picked = await browser.open();
+  hideLoading("drive-dl");
+  if (!picked) return;
+  await loadVideoBlob(picked.blob, picked.name);
+}
+
+btnDrive.addEventListener("click", () => { openDriveBrowser(); });
+
+// Coming back from Google's sign-in redirect: capture the token left in the
+// URL fragment, and if the Drive browser was open when we left, reopen it
+// automatically instead of leaving the user to tap the button again.
+{
+  const { pendingPick } = handleAuthRedirectReturn();
+  if (pendingPick) openDriveBrowser();
+}
 
 // Buffering during playback/seek (relevant for large or cloud-sourced clips)
 // reuses the same overlay so a stall never looks like a frozen app.

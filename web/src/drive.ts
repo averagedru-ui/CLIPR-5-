@@ -1,121 +1,120 @@
-import { GOOGLE_CLIENT_ID, GOOGLE_API_KEY } from "./google-config";
+import { GOOGLE_CLIENT_ID } from "./google-config";
 
-// Minimal ambient surface for the two Google script-tag globals - avoids
-// pulling in @types/gapi / @types/google.picker for a handful of calls.
-declare const google: any;
-declare const gapi: any;
-
-const SCOPE = "https://www.googleapis.com/auth/drive.file";
-
-let gisLoaded: Promise<void> | null = null;
-let pickerLoaded: Promise<void> | null = null;
-let tokenClient: any = null;
-let accessToken: string | null = null;
+// drive.readonly (not drive.file): a drive.file-scoped token can only see
+// files this app created or that were explicitly opened through Google's
+// own Picker widget (Picker gets a special UI-only exemption to browse the
+// full Drive for selection - a raw files.list call does NOT get that
+// exemption). Since we're hand-rolling our own folder browser instead of
+// using Picker, we need real read access. Fine to use outside Google's
+// verification review as long as the OAuth consent screen stays in Testing
+// mode with only your own account as a test user.
+const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+const TOKEN_KEY = "clipr_drive_token";
+const PENDING_KEY = "clipr_drive_pending_pick";
 
 export function driveConfigured(): boolean {
-  return Boolean(GOOGLE_CLIENT_ID && GOOGLE_API_KEY);
+  return Boolean(GOOGLE_CLIENT_ID);
 }
 
-function loadScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = src;
-    s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error(`failed to load ${src}`));
-    document.head.appendChild(s);
-  });
+function redirectUri(): string {
+  return window.location.origin + window.location.pathname;
 }
 
-function ensureGis(): Promise<void> {
-  if (!gisLoaded) gisLoaded = loadScript("https://accounts.google.com/gsi/client");
-  return gisLoaded;
-}
-
-function ensurePicker(): Promise<void> {
-  if (!pickerLoaded) {
-    pickerLoaded = loadScript("https://apis.google.com/js/api.js").then(
-      () => new Promise<void>((resolve) => gapi.load("picker", () => resolve()))
-    );
+function getCachedToken(): string | null {
+  try {
+    const raw = sessionStorage.getItem(TOKEN_KEY);
+    if (!raw) return null;
+    const { token, expiresAt } = JSON.parse(raw);
+    if (Date.now() > expiresAt - 30_000) return null; // 30s safety margin
+    return token;
+  } catch {
+    return null;
   }
-  return pickerLoaded;
 }
 
-async function getAccessToken(): Promise<string> {
-  await ensureGis();
-  if (accessToken) return accessToken;
-  return new Promise((resolve, reject) => {
-    if (!tokenClient) {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: SCOPE,
-        callback: () => {}, // overridden per-request below
-      });
-    }
-    tokenClient.callback = (resp: any) => {
-      if (resp.error) { reject(new Error(resp.error)); return; }
-      accessToken = resp.access_token;
-      resolve(accessToken!);
-    };
-    tokenClient.requestAccessToken({ prompt: "" });
-  });
+function cacheToken(token: string, expiresInSec: number) {
+  sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expiresAt: Date.now() + expiresInSec * 1000 }));
 }
 
-export interface DrivePickResult {
+// Google's popup-based sign-in (Identity Services token client) is unreliable
+// on mobile Safari/PWA: WebKit turns the popup into a plain new tab, and the
+// token callback depends on that tab talking back to window.opener - which
+// silently fails in a standalone PWA, leaving the user stuck on Google's
+// sign-in screen with nothing happening back in the app. A full-page
+// redirect has no such handoff to break.
+function redirectToGoogleAuth() {
+  sessionStorage.setItem(PENDING_KEY, "1");
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.searchParams.set("client_id", GOOGLE_CLIENT_ID);
+  url.searchParams.set("redirect_uri", redirectUri());
+  url.searchParams.set("response_type", "token");
+  url.searchParams.set("scope", SCOPE);
+  url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("prompt", "consent");
+  window.location.href = url.toString();
+}
+
+// Call once at app boot. Captures an access_token left in the URL fragment
+// by the redirect above, and reports whether a Drive open was left pending
+// (i.e. the Drive browser should reopen automatically now that we're back).
+export function handleAuthRedirectReturn(): { pendingPick: boolean } {
+  const hash = window.location.hash;
+  if (hash.includes("access_token")) {
+    const params = new URLSearchParams(hash.slice(1));
+    const token = params.get("access_token");
+    const expiresIn = Number(params.get("expires_in") ?? "3600");
+    if (token) cacheToken(token, expiresIn);
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+  const pendingPick = sessionStorage.getItem(PENDING_KEY) === "1";
+  sessionStorage.removeItem(PENDING_KEY);
+  return { pendingPick };
+}
+
+// Returns null (and starts a redirect away from the page) when there's no
+// valid token yet - callers must treat null as "nothing more to do here."
+export function getAccessToken(): string | null {
+  const cached = getCachedToken();
+  if (cached) return cached;
+  redirectToGoogleAuth();
+  return null;
+}
+
+export interface DriveItem {
+  id: string;
+  name: string;
+  isFolder: boolean;
+}
+
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+// Our own minimal Drive browser (see ui/drive-browser.ts) instead of
+// Google's Picker widget - Picker's folder navigation turned out to be
+// unreliable in ways not fixable from configuration (folders not opening on
+// tap, a flat "Recent" listing instead of real My Drive, videos missing
+// from folders that clearly contain them). Plain files.list gives full
+// control over exactly this.
+export async function listDriveFolder(token: string, folderId: string): Promise<DriveItem[]> {
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
+  const fields = encodeURIComponent("files(id,name,mimeType)");
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&orderBy=folder,name&pageSize=1000`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error(`Drive listing failed (${res.status} ${res.statusText})`);
+  const data = await res.json();
+  const items: DriveItem[] = (data.files ?? [])
+    .filter((f: any) => f.mimeType === FOLDER_MIME || String(f.mimeType).startsWith("video/"))
+    .map((f: any) => ({ id: f.id, name: f.name, isFolder: f.mimeType === FOLDER_MIME }));
+  return items;
+}
+
+export interface DriveDownloadResult {
   blob: Blob;
   name: string;
 }
 
-// Opens Google's own Drive file browser (not the OS file picker) and
-// downloads the chosen video's bytes via the Drive API - sidesteps iOS's
-// buggy Files-app Drive integration entirely since nothing routes through
-// UIDocumentPickerViewController.
-export async function pickFromDrive(onDownloadStart?: () => void): Promise<DrivePickResult | null> {
-  if (!driveConfigured()) {
-    throw new Error("Drive isn't set up yet (missing Google Client ID / API key)");
-  }
-  const token = await getAccessToken();
-  await ensurePicker();
-
-  const fileId = await new Promise<string | null>((resolve, reject) => {
-    // DOCS_VIDEOS is a flat "every video in Drive" search with no folder
-    // nav - useless once there's more than a handful of clips. DOCS is the
-    // real My Drive browser; DOCS_VIDEOS stays as a second tab for a quick
-    // flat search when you already know the filename.
-    // Without setParent("root"), DOCS defaults to a flat "Recent" list
-    // aggregated across all of Drive (mixed folders from everywhere, files
-    // inconsistently included) instead of actually starting at My Drive's
-    // root - matches exactly the "every folder/subfolder listed at once,
-    // videos missing" symptom. Also deliberately NOT calling setMimeTypes:
-    // that drops real folder-tree navigation and forces the same flat
-    // search-results behavior.
-    const folderView = new google.picker.DocsView(google.picker.ViewId.DOCS)
-      .setParent("root")
-      .setIncludeFolders(true)
-      .setSelectFolderEnabled(false);
-    const flatView = new google.picker.DocsView(google.picker.ViewId.DOCS_VIDEOS)
-      .setIncludeFolders(true)
-      .setSelectFolderEnabled(false);
-    const picker = new google.picker.PickerBuilder()
-      .addView(folderView)
-      .addView(flatView)
-      .setOAuthToken(token)
-      .setDeveloperKey(GOOGLE_API_KEY)
-      .setCallback((data: any) => {
-        if (data.action === google.picker.Action.PICKED) {
-          resolve(data.docs[0].id);
-        } else if (data.action === google.picker.Action.CANCEL) {
-          resolve(null);
-        }
-      })
-      .build();
-    picker.setVisible(true);
-    void reject; // no async error path from the picker itself
-  });
-
-  if (!fileId) return null;
-  onDownloadStart?.();
-
+export async function downloadDriveFile(token: string, fileId: string): Promise<DriveDownloadResult> {
   const meta = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name`,
     { headers: { Authorization: `Bearer ${token}` } }
@@ -125,9 +124,7 @@ export async function pickFromDrive(onDownloadStart?: () => void): Promise<Drive
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
-  if (!res.ok) {
-    throw new Error(`Drive download failed (${res.status} ${res.statusText})`);
-  }
+  if (!res.ok) throw new Error(`Drive download failed (${res.status} ${res.statusText})`);
   const blob = await res.blob();
   return { blob, name: meta.name ?? "drive-video.mp4" };
 }
