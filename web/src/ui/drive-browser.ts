@@ -1,4 +1,4 @@
-import { listDriveFolder, downloadDriveFile, type DriveItem, type DriveDownloadResult } from "../drive";
+import { listDriveFolder, driveMediaUrl, type DriveItem } from "../drive";
 
 interface Crumb {
   id: string;
@@ -11,12 +11,10 @@ export class DriveBrowser {
   private listEl: HTMLDivElement;
   private statusEl: HTMLDivElement;
   private statusTextEl: HTMLSpanElement;
-  private cancelEl: HTMLSpanElement;
   private path: Crumb[] = [{ id: "root", name: "My Drive" }];
-  private resolvePick: ((r: DriveDownloadResult | null) => void) | null = null;
-  private downloadAbort: AbortController | null = null;
+  private resolveClose: (() => void) | null = null;
 
-  constructor(private token: string, private onDownloadStart: () => void) {
+  constructor(private token: string) {
     this.backdrop = document.createElement("div");
     this.backdrop.className = "modal-backdrop";
     this.backdrop.innerHTML = `
@@ -29,7 +27,6 @@ export class DriveBrowser {
         <div class="modal-body" data-list></div>
         <div class="drive-status hidden" data-status>
           <span data-status-text></span>
-          <span class="drive-cancel hidden" data-cancel>Cancel</span>
         </div>
       </div>
     `;
@@ -37,25 +34,23 @@ export class DriveBrowser {
     this.listEl = this.backdrop.querySelector("[data-list]")!;
     this.statusEl = this.backdrop.querySelector("[data-status]")!;
     this.statusTextEl = this.backdrop.querySelector("[data-status-text]")!;
-    this.cancelEl = this.backdrop.querySelector("[data-cancel]")!;
-    this.cancelEl.addEventListener("click", () => {
-      this.downloadAbort?.abort();
-    });
-    this.backdrop.querySelector("[data-close]")!.addEventListener("click", () => this.close(null));
-    this.backdrop.addEventListener("click", (e) => { if (e.target === this.backdrop) this.close(null); });
+    this.backdrop.querySelector("[data-close]")!.addEventListener("click", () => this.close());
+    this.backdrop.addEventListener("click", (e) => { if (e.target === this.backdrop) this.close(); });
   }
 
-  open(): Promise<DriveDownloadResult | null> {
+  // Resolves once the modal is dismissed (either the user closed it, or a
+  // download was started and the modal closed itself).
+  open(): Promise<void> {
     document.body.appendChild(this.backdrop);
     this.renderCrumbs();
     this.loadFolder(this.path[this.path.length - 1].id);
-    return new Promise((resolve) => { this.resolvePick = resolve; });
+    return new Promise((resolve) => { this.resolveClose = resolve; });
   }
 
-  private close(result: DriveDownloadResult | null) {
+  private close() {
     this.backdrop.remove();
-    this.resolvePick?.(result);
-    this.resolvePick = null;
+    this.resolveClose?.();
+    this.resolveClose = null;
   }
 
   private renderCrumbs() {
@@ -107,41 +102,31 @@ export class DriveBrowser {
     }
   }
 
-  private async onItemClick(item: DriveItem) {
+  private onItemClick(item: DriveItem) {
     if (item.isFolder) {
       this.path.push({ id: item.id, name: item.name });
       this.renderCrumbs();
       this.loadFolder(item.id);
       return;
     }
-    this.onDownloadStart();
+    // Hand off to Safari's own download/media handling instead of fetching
+    // the bytes ourselves - see driveMediaUrl() for why. A plain tab
+    // navigation (not fetch) is what lets the OS take over and survive the
+    // app being backgrounded.
+    const url = driveMediaUrl(this.token, item.id);
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
     this.statusEl.classList.remove("hidden");
-    this.cancelEl.classList.remove("hidden");
-    this.statusTextEl.textContent = `Downloading ${item.name}…`;
-    this.downloadAbort = new AbortController();
-    try {
-      const result = await downloadDriveFile(
-        this.token,
-        item.id,
-        (received, total) => {
-          const mb = (received / (1024 * 1024)).toFixed(1);
-          this.statusTextEl.textContent = total
-            ? `Downloading ${item.name}… ${mb} / ${(total / (1024 * 1024)).toFixed(1)} MB`
-            : `Downloading ${item.name}… ${mb} MB`;
-        },
-        this.downloadAbort.signal
-      );
-      this.close(result);
-    } catch (err) {
-      if ((err as Error).name === "AbortError") {
-        this.statusEl.classList.add("hidden");
-      } else {
-        this.statusTextEl.textContent = (err as Error).message;
-      }
-      this.cancelEl.classList.add("hidden");
-    } finally {
-      this.downloadAbort = null;
-    }
+    this.statusTextEl.textContent =
+      `Started "${item.name}" in Safari - check the download arrow (or the video player's Share/Save button) ` +
+      `in the toolbar. Once it's saved, come back and use the "Video" button to import it.`;
+    setTimeout(() => this.close(), 3500);
   }
 }
 

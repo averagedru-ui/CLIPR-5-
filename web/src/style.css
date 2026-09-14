@@ -328,11 +328,5 @@ html, body {
   color: var(--text-dim);
   text-align: center;
 }
-.drive-cancel {
-  color: var(--accent);
-  cursor: pointer;
-  text-decoration: underline;
-  flex: 0 0 auto;
-}
 
 .hidden { display: none !important; }

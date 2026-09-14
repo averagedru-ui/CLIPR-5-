@@ -109,11 +109,34 @@ export async function listDriveFolder(token: string, folderId: string): Promise<
   return items;
 }
 
+// A page-driven fetch() is paused/killed by iOS the moment Safari is
+// backgrounded - there is no workaround for that at the JS level, and
+// holding a large gameplay clip fully in memory as a Blob while it
+// downloads is slow and risky on a phone besides. Handing the URL to
+// Safari itself instead lets its OWN download/media handling take over,
+// which does survive backgrounding - either its native download manager
+// (the arrow-down icon in the toolbar) or, if it opens as a playable video
+// instead, the native player's own Share/Save option. Either way the user
+// re-imports the resulting local file via the normal "Video" button
+// afterward. access_token as a query param (rather than the usual
+// Authorization header) is what makes a plain browser navigation able to
+// authenticate at all; it's short-lived (~1hr) and this stays a
+// personal/private-repo project, so the trade-off is fine here.
+export function driveMediaUrl(token: string, fileId: string): string {
+  const url = new URL(`https://www.googleapis.com/drive/v3/files/${fileId}`);
+  url.searchParams.set("alt", "media");
+  url.searchParams.set("access_token", token);
+  return url.toString();
+}
+
 export interface DriveDownloadResult {
   blob: Blob;
   name: string;
 }
 
+// Kept for small files where holding the whole thing in memory briefly is
+// fine - not currently used by the Drive browser UI (see driveMediaUrl),
+// but useful if a "small clip, just grab it inline" path is wanted later.
 export async function downloadDriveFile(
   token: string,
   fileId: string,
