@@ -7,6 +7,7 @@ import {
 } from "./core/project";
 import { importVctpl } from "./core/vctpl";
 import { recordComposite, extForMime } from "./export";
+import { pickFromDrive, driveConfigured } from "./drive";
 import type { Project } from "./core/types";
 
 const app = document.getElementById("app")!;
@@ -14,6 +15,7 @@ app.innerHTML = `
   <div class="topbar">
     <h1>CLIPR</h1>
     <button class="btn icon" id="btnLoad" title="Load video">📂 Video</button>
+    <button class="btn icon" id="btnDrive" title="Load from Google Drive">🔵 Drive</button>
     <button class="btn icon" id="btnTpl" title="Import template">🧩 Template</button>
     <span class="spacer"></span>
     <button class="btn icon" id="btnNodes" title="Toggle node view">🧠</button>
@@ -188,13 +190,10 @@ function hideLoading(reason: string) {
   if (loadingReasons.size === 0) loadingOverlay.classList.add("hidden");
 }
 
-document.getElementById("btnLoad")!.addEventListener("click", () => fileVideo.click());
-fileVideo.addEventListener("change", async () => {
-  const f = fileVideo.files?.[0];
-  if (!f) return;
-  showLoading("load", `Loading ${f.name}…`);
+async function loadVideoBlob(blob: Blob, name: string) {
+  showLoading("load", `Loading ${name}…`);
   try {
-    const url = URL.createObjectURL(f);
+    const url = URL.createObjectURL(blob);
     video.src = url;
     video.load();
     await new Promise<void>((resolve, reject) => {
@@ -221,14 +220,38 @@ fileVideo.addEventListener("change", async () => {
     drawOnce();
     updateTransport();
   } catch (err) {
-    const mb = (f.size / (1024 * 1024)).toFixed(1);
+    const mb = (blob.size / (1024 * 1024)).toFixed(1);
     alert(
       `Couldn't load that video: ${(err as Error).message ?? err}\n\n` +
-      `File: ${f.name}\nReported type: ${f.type || "(none)"}\nSize: ${mb} MB`
+      `File: ${name}\nReported type: ${blob.type || "(none)"}\nSize: ${mb} MB`
     );
   } finally {
-    fileVideo.value = "";
     hideLoading("load");
+  }
+}
+
+document.getElementById("btnLoad")!.addEventListener("click", () => fileVideo.click());
+fileVideo.addEventListener("change", async () => {
+  const f = fileVideo.files?.[0];
+  if (!f) return;
+  await loadVideoBlob(f, f.name);
+  fileVideo.value = "";
+});
+
+const btnDrive = document.getElementById("btnDrive") as HTMLButtonElement;
+if (!driveConfigured()) {
+  btnDrive.title = "Drive isn't set up yet";
+  btnDrive.style.opacity = "0.5";
+}
+btnDrive.addEventListener("click", async () => {
+  try {
+    const picked = await pickFromDrive(() => showLoading("drive-dl", "Downloading from Drive…"));
+    hideLoading("drive-dl");
+    if (!picked) return;
+    await loadVideoBlob(picked.blob, picked.name);
+  } catch (err) {
+    hideLoading("drive-dl");
+    alert(`Google Drive: ${(err as Error).message}`);
   }
 });
 
