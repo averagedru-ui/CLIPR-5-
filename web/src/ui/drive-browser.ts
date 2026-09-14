@@ -10,8 +10,11 @@ export class DriveBrowser {
   private crumbEl: HTMLDivElement;
   private listEl: HTMLDivElement;
   private statusEl: HTMLDivElement;
+  private statusTextEl: HTMLSpanElement;
+  private cancelEl: HTMLSpanElement;
   private path: Crumb[] = [{ id: "root", name: "My Drive" }];
   private resolvePick: ((r: DriveDownloadResult | null) => void) | null = null;
+  private downloadAbort: AbortController | null = null;
 
   constructor(private token: string, private onDownloadStart: () => void) {
     this.backdrop = document.createElement("div");
@@ -24,12 +27,20 @@ export class DriveBrowser {
         </div>
         <div class="drive-crumbs" data-crumbs></div>
         <div class="modal-body" data-list></div>
-        <div class="drive-status hidden" data-status></div>
+        <div class="drive-status hidden" data-status>
+          <span data-status-text></span>
+          <span class="drive-cancel hidden" data-cancel>Cancel</span>
+        </div>
       </div>
     `;
     this.crumbEl = this.backdrop.querySelector("[data-crumbs]")!;
     this.listEl = this.backdrop.querySelector("[data-list]")!;
     this.statusEl = this.backdrop.querySelector("[data-status]")!;
+    this.statusTextEl = this.backdrop.querySelector("[data-status-text]")!;
+    this.cancelEl = this.backdrop.querySelector("[data-cancel]")!;
+    this.cancelEl.addEventListener("click", () => {
+      this.downloadAbort?.abort();
+    });
     this.backdrop.querySelector("[data-close]")!.addEventListener("click", () => this.close(null));
     this.backdrop.addEventListener("click", (e) => { if (e.target === this.backdrop) this.close(null); });
   }
@@ -105,12 +116,31 @@ export class DriveBrowser {
     }
     this.onDownloadStart();
     this.statusEl.classList.remove("hidden");
-    this.statusEl.textContent = `Downloading ${item.name}…`;
+    this.cancelEl.classList.remove("hidden");
+    this.statusTextEl.textContent = `Downloading ${item.name}…`;
+    this.downloadAbort = new AbortController();
     try {
-      const result = await downloadDriveFile(this.token, item.id);
+      const result = await downloadDriveFile(
+        this.token,
+        item.id,
+        (received, total) => {
+          const mb = (received / (1024 * 1024)).toFixed(1);
+          this.statusTextEl.textContent = total
+            ? `Downloading ${item.name}… ${mb} / ${(total / (1024 * 1024)).toFixed(1)} MB`
+            : `Downloading ${item.name}… ${mb} MB`;
+        },
+        this.downloadAbort.signal
+      );
       this.close(result);
     } catch (err) {
-      this.statusEl.textContent = (err as Error).message;
+      if ((err as Error).name === "AbortError") {
+        this.statusEl.classList.add("hidden");
+      } else {
+        this.statusTextEl.textContent = (err as Error).message;
+      }
+      this.cancelEl.classList.add("hidden");
+    } finally {
+      this.downloadAbort = null;
     }
   }
 }

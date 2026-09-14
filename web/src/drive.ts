@@ -114,17 +114,42 @@ export interface DriveDownloadResult {
   name: string;
 }
 
-export async function downloadDriveFile(token: string, fileId: string): Promise<DriveDownloadResult> {
+export async function downloadDriveFile(
+  token: string,
+  fileId: string,
+  onProgress?: (receivedBytes: number, totalBytes: number | null) => void,
+  signal?: AbortSignal
+): Promise<DriveDownloadResult> {
   const meta = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: `Bearer ${token}` }, signal }
   ).then((r) => r.json());
 
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: `Bearer ${token}` }, signal }
   );
   if (!res.ok) throw new Error(`Drive download failed (${res.status} ${res.statusText})`);
-  const blob = await res.blob();
+
+  const totalBytes = Number(res.headers.get("Content-Length")) || null;
+  // Manual streaming read instead of res.blob() - the app previously just
+  // showed a static "Downloading..." with no way to tell a real stall from
+  // a large file over slow mobile signal actually working. This reports
+  // real progress instead of silence.
+  if (!res.body) {
+    const blob = await res.blob();
+    return { blob, name: meta.name ?? "drive-video.mp4" };
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    onProgress?.(received, totalBytes);
+  }
+  const blob = new Blob(chunks as BlobPart[]);
   return { blob, name: meta.name ?? "drive-video.mp4" };
 }

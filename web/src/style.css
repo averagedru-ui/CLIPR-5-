@@ -318,11 +318,21 @@ html, body {
 .drive-crumb.current { color: var(--text-dim); cursor: default; }
 .drive-crumb-sep { color: var(--text-dim); }
 .drive-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding: 10px;
   border-top: 1px solid var(--line);
   font-size: 12px;
   color: var(--text-dim);
   text-align: center;
+}
+.drive-cancel {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  flex: 0 0 auto;
 }
 
 .hidden { display: none !important; }
