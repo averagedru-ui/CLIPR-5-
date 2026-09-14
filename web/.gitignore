@@ -3,3 +3,6 @@ dist/
 dist-ssr/
 *.local
 *.tsbuildinfo
+.env
+.env.*
+!.env.example
