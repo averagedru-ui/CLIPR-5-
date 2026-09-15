@@ -22,7 +22,28 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,png,json,vctpl}"]
+        // App shell only in the precache (CacheFirst by default) - .json/
+        // .vctpl used to be here too for offline template browsing, but
+        // precache is served straight from cache with no per-visit
+        // freshness check. A PWA reopened from the home screen (not a true
+        // browser reload) can go a long time before ever noticing the
+        // server has new/updated templates - confirmed as the actual cause
+        // of repeated "still not seeing my new template" reports, not
+        // deploy lag or a one-off stale-cache fluke. Templates now use a
+        // NetworkFirst runtime strategy instead: always tries the network
+        // first (so new saves show up immediately), only falls back to the
+        // last cached copy when actually offline.
+        globPatterns: ["**/*.{js,css,html,svg,png}"],
+        runtimeCaching: [
+          {
+            urlPattern: /\/templates\/.*\.(json|vctpl)$/,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "templates-cache",
+              networkTimeoutSeconds: 4,
+            },
+          },
+        ],
       }
     })
   ],
