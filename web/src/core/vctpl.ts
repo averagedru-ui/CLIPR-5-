@@ -1,6 +1,6 @@
 import { nextId } from "./project";
 import type { Anchor, Project, RegionNode, Shape } from "./types";
-import { defaultRegion } from "./types";
+import { defaultRegion, regionGridPos, outputNodePos } from "./types";
 
 // Reads a desktop CLIPR .vctpl (JSON). Pulls only "HUD Region" nodes (the
 // per-element overlays) into the mobile project's flat region list; desktop-only
@@ -14,7 +14,8 @@ export function importVctpl(json: any, canvasW: number, canvasH: number): Projec
   for (const gn of graphNodes) {
     if (gn.type !== "HUD Region" && gn.type !== "Facecam") continue;
     const v = (name: string, fallback: any) => gn.params?.[name]?.value ?? fallback;
-    const base = defaultRegion(nextId("region"), 280, 40 + i * 210);
+    const pos = regionGridPos(i);
+    const base = defaultRegion(nextId("region"), pos.x, pos.y);
     i += 1;
     const sr = v("source_rect", [0, 0, 0.2, 0.2]);
     const cr = v("corner_radii", [0, 0, 0, 0]);
@@ -55,13 +56,14 @@ export function importVctpl(json: any, canvasW: number, canvasH: number): Projec
     nodes.push(region);
   }
 
+  const out = outputNodePos();
   return {
     name: json?.meta?.name ?? "Imported",
     canvas_w: json?.canvas?.width ?? canvasW,
     canvas_h: json?.canvas?.height ?? canvasH,
     nodes: [
       { id: "source", kind: "source", x: 40, y: 40 },
-      { id: "output", kind: "output", x: 280 + i * 0 + 260, y: 40 },
+      { id: "output", kind: "output", x: out.x, y: out.y },
       ...nodes,
     ],
     wires: [],

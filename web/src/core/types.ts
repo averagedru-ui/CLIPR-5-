@@ -83,6 +83,30 @@ export const ANCHOR_UV: Record<Anchor, [number, number]> = {
   "bottom-left": [0, 1], "bottom-center": [0.5, 1], "bottom-right": [1, 1],
 };
 
+// Grid layout for region cards on the node canvas. A single-column stack
+// with a small fixed offset per card looked fine with 1-2 regions but badly
+// overlapped with a real template's 8-12 regions, since each card is
+// 300-450px tall depending on shape/content - far more than any small
+// fixed offset accounted for.
+const REGION_GRID_COLS = 3;
+const REGION_GRID_COL_W = 260;
+const REGION_GRID_ROW_H = 460;
+const REGION_GRID_START_X = 280;
+const REGION_GRID_START_Y = 40;
+
+export function regionGridPos(index: number): { x: number; y: number } {
+  const col = index % REGION_GRID_COLS;
+  const row = Math.floor(index / REGION_GRID_COLS);
+  return {
+    x: REGION_GRID_START_X + col * REGION_GRID_COL_W,
+    y: REGION_GRID_START_Y + row * REGION_GRID_ROW_H,
+  };
+}
+
+export function outputNodePos(): { x: number; y: number } {
+  return { x: REGION_GRID_START_X + REGION_GRID_COLS * REGION_GRID_COL_W + 40, y: REGION_GRID_START_Y };
+}
+
 export function defaultRegion(id: string, x: number, y: number): RegionNode {
   return {
     id, kind: "region", label: "Region",

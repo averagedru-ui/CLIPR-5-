@@ -30,6 +30,7 @@ app.innerHTML = `
       <div class="spinner"></div>
       <div class="loading-label" id="loadingLabel">Loading video…</div>
     </div>
+    <div class="debug-readout hidden" id="debugReadout"></div>
   </div>
   <div class="transport">
     <button class="btn icon" id="btnPlay" disabled>${iconPlay}</button>
@@ -139,10 +140,31 @@ const graph = new NodeGraph(nodeCanvasEl, project, {
   },
 });
 
+const debugReadout = document.getElementById("debugReadout") as HTMLDivElement;
+let glContextLost = false;
+canvas.addEventListener("webglcontextlost", (e) => {
+  e.preventDefault();
+  glContextLost = true;
+});
+canvas.addEventListener("webglcontextrestored", () => { glContextLost = false; });
+
+// Temporary on-screen diagnostics for the still-unresolved "audio plays,
+// picture stays black" report on iOS - remote debugging that blind has
+// failed multiple times, this turns the next report into actual numbers
+// (readyState, decoded dimensions, whether the GL context died) instead of
+// another guess. Remove once that's actually root-caused.
+function updateDebugReadout() {
+  debugReadout.classList.remove("hidden");
+  debugReadout.textContent =
+    `rs:${video.readyState} ${video.videoWidth}x${video.videoHeight} t:${video.currentTime.toFixed(2)} ` +
+    `paused:${video.paused} vfc:${vfcSupported ? "y" : "n"} gl:${glContextLost ? "LOST" : "ok"}`;
+}
+
 function drawOnce() {
   if (!hasVideo) return;
   compositor.uploadFrame(video, video.videoWidth, video.videoHeight);
   compositor.draw(project);
+  updateDebugReadout();
 }
 
 // requestVideoFrameCallback (Safari 15.4+, Chrome 83+) guarantees a real
@@ -156,6 +178,7 @@ function vfcLoop() {
   compositor.uploadFrame(video, video.videoWidth, video.videoHeight);
   compositor.draw(project);
   updateTransport();
+  updateDebugReadout();
   (video as any).requestVideoFrameCallback(vfcLoop);
 }
 
@@ -164,6 +187,7 @@ function loop() {
     compositor.uploadFrame(video, video.videoWidth, video.videoHeight);
     compositor.draw(project);
     updateTransport();
+    updateDebugReadout();
   }
   rafId = requestAnimationFrame(loop);
 }

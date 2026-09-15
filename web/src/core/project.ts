@@ -1,4 +1,4 @@
-import { defaultRegion, type Project, type GraphNode } from "./types";
+import { defaultRegion, regionGridPos, outputNodePos, type Project, type GraphNode } from "./types";
 
 let counter = 0;
 export function nextId(prefix: string): string {
@@ -7,20 +7,26 @@ export function nextId(prefix: string): string {
 }
 
 export function newProject(): Project {
+  const out = outputNodePos();
   return {
     name: "Untitled",
     canvas_w: 1080,
     canvas_h: 1920,
     nodes: [
-      { id: "source", kind: "source", x: 40, y: 200 },
-      { id: "output", kind: "output", x: 560, y: 200 },
+      { id: "source", kind: "source", x: 40, y: 40 },
+      { id: "output", kind: "output", x: out.x, y: out.y },
     ],
     wires: [],
   };
 }
 
+function regionCount(p: Project): number {
+  return p.nodes.filter((n) => n.kind === "region").length;
+}
+
 export function addRegion(p: Project): GraphNode {
-  const n = defaultRegion(nextId("region"), 280, 40 + p.nodes.length * 30);
+  const pos = regionGridPos(regionCount(p));
+  const n = defaultRegion(nextId("region"), pos.x, pos.y);
   p.nodes.push(n);
   return n;
 }
