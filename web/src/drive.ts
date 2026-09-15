@@ -9,7 +9,9 @@ import { GOOGLE_CLIENT_ID } from "./google-config";
 // verification review as long as the OAuth consent screen stays in Testing
 // mode with only your own account as a test user.
 const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
-const TOKEN_KEY = "clipr_drive_token";
+const TOKEN_KEY = "clipr_drive_token";           // sessionStorage - short-lived access token
+const REFRESH_KEY = "clipr_drive_refresh_token"; // localStorage - persists across app relaunches
+const VERIFIER_KEY = "clipr_drive_pkce_verifier";
 const PENDING_KEY = "clipr_drive_pending_pick";
 
 export function driveConfigured(): boolean {
@@ -36,35 +38,96 @@ function cacheToken(token: string, expiresInSec: number) {
   sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expiresAt: Date.now() + expiresInSec * 1000 }));
 }
 
+function base64url(bytes: Uint8Array): string {
+  let str = "";
+  for (const b of bytes) str += String.fromCharCode(b);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function pkcePair(): Promise<{ verifier: string; challenge: string }> {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const verifier = base64url(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return { verifier, challenge: base64url(new Uint8Array(digest)) };
+}
+
 // Google's popup-based sign-in (Identity Services token client) is unreliable
 // on mobile Safari/PWA: WebKit turns the popup into a plain new tab, and the
 // token callback depends on that tab talking back to window.opener - which
 // silently fails in a standalone PWA, leaving the user stuck on Google's
 // sign-in screen with nothing happening back in the app. A full-page
 // redirect has no such handoff to break.
-function redirectToGoogleAuth() {
+//
+// Authorization Code + PKCE (not the simpler implicit "response_type=token"
+// flow used at first) specifically so Google issues a refresh_token -
+// implicit grant never does, which meant re-signing-in every ~1hr no matter
+// what. access_type=offline + prompt=consent are both required for Google
+// to actually include a refresh_token in the response.
+async function redirectToGoogleAuth() {
   sessionStorage.setItem(PENDING_KEY, "1");
+  const { verifier, challenge } = await pkcePair();
+  sessionStorage.setItem(VERIFIER_KEY, verifier);
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", GOOGLE_CLIENT_ID);
   url.searchParams.set("redirect_uri", redirectUri());
-  url.searchParams.set("response_type", "token");
+  url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", SCOPE);
-  url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("access_type", "offline");
   url.searchParams.set("prompt", "consent");
+  url.searchParams.set("code_challenge", challenge);
+  url.searchParams.set("code_challenge_method", "S256");
   window.location.href = url.toString();
 }
 
-// Call once at app boot. Captures an access_token left in the URL fragment
-// by the redirect above, and reports whether a Drive open was left pending
-// (i.e. the Drive browser should reopen automatically now that we're back).
-export function handleAuthRedirectReturn(): { pendingPick: boolean } {
-  const hash = window.location.hash;
-  if (hash.includes("access_token")) {
-    const params = new URLSearchParams(hash.slice(1));
-    const token = params.get("access_token");
-    const expiresIn = Number(params.get("expires_in") ?? "3600");
-    if (token) cacheToken(token, expiresIn);
-    history.replaceState(null, "", window.location.pathname + window.location.search);
+// Google requires the "Web application" client's secret for this exchange
+// even with PKCE - there's no secret-free path for this client type - so it
+// goes through our own /api/drive-token serverless function instead of
+// oauth2.googleapis.com directly, keeping the secret server-side.
+async function callTokenEndpoint(body: Record<string, string>): Promise<any> {
+  const res = await fetch("/api/drive-token", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || data.error || `token request failed (${res.status})`);
+  return data;
+}
+
+async function exchangeCodeForTokens(code: string, verifier: string): Promise<void> {
+  const data = await callTokenEndpoint({
+    grant_type: "authorization_code",
+    code,
+    code_verifier: verifier,
+    redirect_uri: redirectUri(),
+  });
+  if (data.access_token) cacheToken(data.access_token, data.expires_in ?? 3600);
+  if (data.refresh_token) localStorage.setItem(REFRESH_KEY, data.refresh_token);
+}
+
+async function refreshAccessToken(refreshToken: string): Promise<string> {
+  const data = await callTokenEndpoint({ grant_type: "refresh_token", refresh_token: refreshToken });
+  cacheToken(data.access_token, data.expires_in ?? 3600);
+  return data.access_token;
+}
+
+// Call once at app boot. Exchanges an authorization code left in the URL by
+// the redirect above (if any), and reports whether a Drive open was left
+// pending (i.e. the Drive browser should reopen automatically now that
+// we're back).
+export async function handleAuthRedirectReturn(): Promise<{ pendingPick: boolean }> {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  if (code) {
+    const verifier = sessionStorage.getItem(VERIFIER_KEY) ?? "";
+    sessionStorage.removeItem(VERIFIER_KEY);
+    try {
+      await exchangeCodeForTokens(code, verifier);
+    } catch (err) {
+      console.error("Drive sign-in failed:", err);
+    }
+    history.replaceState(null, "", window.location.pathname);
   }
   const pendingPick = sessionStorage.getItem(PENDING_KEY) === "1";
   sessionStorage.removeItem(PENDING_KEY);
@@ -72,11 +135,22 @@ export function handleAuthRedirectReturn(): { pendingPick: boolean } {
 }
 
 // Returns null (and starts a redirect away from the page) when there's no
-// valid token yet - callers must treat null as "nothing more to do here."
-export function getAccessToken(): string | null {
+// valid token and no usable refresh token yet - callers must treat null as
+// "nothing more to do here." Silently mints a fresh access token from the
+// stored refresh token when possible, with no redirect/user interaction -
+// this is what avoids signing in every session.
+export async function getAccessToken(): Promise<string | null> {
   const cached = getCachedToken();
   if (cached) return cached;
-  redirectToGoogleAuth();
+  const refreshToken = localStorage.getItem(REFRESH_KEY);
+  if (refreshToken) {
+    try {
+      return await refreshAccessToken(refreshToken);
+    } catch {
+      localStorage.removeItem(REFRESH_KEY); // stale/revoked - fall through to full re-auth
+    }
+  }
+  await redirectToGoogleAuth();
   return null;
 }
 

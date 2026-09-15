@@ -126,6 +126,7 @@ document.body.appendChild(video);
 
 let rafId = 0;
 let hasVideo = false;
+const vfcSupported = typeof (video as any).requestVideoFrameCallback === "function";
 
 const graph = new NodeGraph(nodeCanvasEl, project, {
   onChange: () => { drawOnce(); },
@@ -143,6 +144,20 @@ function drawOnce() {
   compositor.draw(project);
 }
 
+// requestVideoFrameCallback (Safari 15.4+, Chrome 83+) guarantees a real
+// decoded frame is behind video.videoWidth/videoHeight at the moment it
+// fires - plain requestAnimationFrame + reading those properties does NOT
+// give that guarantee on WebKit, which is a documented cause of canvas/
+// WebGL capture from <video> staying black (audio plays fine since decode
+// itself isn't the problem, just the frame-readiness signal we were using).
+function vfcLoop() {
+  if (!hasVideo) return;
+  compositor.uploadFrame(video, video.videoWidth, video.videoHeight);
+  compositor.draw(project);
+  updateTransport();
+  (video as any).requestVideoFrameCallback(vfcLoop);
+}
+
 function loop() {
   if (hasVideo && !video.paused && !video.ended) {
     compositor.uploadFrame(video, video.videoWidth, video.videoHeight);
@@ -151,7 +166,12 @@ function loop() {
   }
   rafId = requestAnimationFrame(loop);
 }
-rafId = requestAnimationFrame(loop);
+
+if (vfcSupported) {
+  (video as any).requestVideoFrameCallback(vfcLoop);
+} else {
+  rafId = requestAnimationFrame(loop);
+}
 
 function mediaErrorText(err: MediaError | null): string {
   if (!err) return "unknown decode error";
@@ -250,7 +270,7 @@ async function openDriveBrowser() {
     alert("Drive isn't set up yet (missing Google Client ID)");
     return;
   }
-  const token = getAccessToken();
+  const token = await getAccessToken();
   if (!token) return; // getAccessToken() already started a redirect to sign in
   const browser = new DriveBrowser(token);
   await browser.open();
@@ -262,13 +282,13 @@ async function openDriveBrowser() {
 
 btnDrive.addEventListener("click", () => { openDriveBrowser(); });
 
-// Coming back from Google's sign-in redirect: capture the token left in the
-// URL fragment, and if the Drive browser was open when we left, reopen it
+// Coming back from Google's sign-in redirect: exchange the code left in the
+// URL for tokens, and if the Drive browser was open when we left, reopen it
 // automatically instead of leaving the user to tap the button again.
-{
-  const { pendingPick } = handleAuthRedirectReturn();
+(async () => {
+  const { pendingPick } = await handleAuthRedirectReturn();
   if (pendingPick) openDriveBrowser();
-}
+})();
 
 // Buffering during playback/seek (relevant for large or cloud-sourced clips)
 // reuses the same overlay so a stall never looks like a frozen app.
