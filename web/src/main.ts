@@ -53,6 +53,7 @@ app.innerHTML = `
     </div>
     <div style="display:flex; gap:8px; padding:8px; border-top:1px solid var(--line);">
       <button class="btn" id="btnAddRegion">+ Region</button>
+      <button class="btn" id="btnClearRegions">Clear</button>
       <span class="spacer"></span>
       <button class="btn" id="btnSaveProj">Save</button>
     </div>
@@ -464,6 +465,14 @@ btnNodes.addEventListener("click", () => {
 
 document.getElementById("btnAddRegion")!.addEventListener("click", () => {
   addRegion(project);
+  graph.setProject(project);
+  drawOnce();
+});
+
+document.getElementById("btnClearRegions")!.addEventListener("click", () => {
+  if (!project.nodes.some((n) => n.kind === "region")) return;
+  if (!confirm("Remove all regions and show the plain video?")) return;
+  project.nodes = project.nodes.filter((n) => n.kind !== "region");
   graph.setProject(project);
   drawOnce();
 });
