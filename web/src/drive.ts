@@ -114,18 +114,26 @@ export async function listDriveFolder(token: string, folderId: string): Promise<
 // holding a large gameplay clip fully in memory as a Blob while it
 // downloads is slow and risky on a phone besides. Handing the URL to
 // Safari itself instead lets its OWN download/media handling take over,
-// which does survive backgrounding - either its native download manager
-// (the arrow-down icon in the toolbar) or, if it opens as a playable video
-// instead, the native player's own Share/Save option. Either way the user
-// re-imports the resulting local file via the normal "Video" button
-// afterward. access_token as a query param (rather than the usual
-// Authorization header) is what makes a plain browser navigation able to
-// authenticate at all; it's short-lived (~1hr) and this stays a
-// personal/private-repo project, so the trade-off is fine here.
-export function driveMediaUrl(token: string, fileId: string): string {
-  const url = new URL(`https://www.googleapis.com/drive/v3/files/${fileId}`);
-  url.searchParams.set("alt", "media");
-  url.searchParams.set("access_token", token);
+// which does survive backgrounding.
+//
+// First attempt used the Drive API's `alt=media` with the OAuth
+// access_token as a query param - Google's automated-abuse detection
+// ("We're sorry... your computer or network may be sending automated
+// queries") blocked that outright and consistently, not just as a
+// transient rate limit. Using Drive's own classic direct-download
+// endpoint instead: this relies on the browser's normal Google session
+// cookie (set when the user just signed in via the redirect flow above,
+// in this same browser) rather than a token in the URL at all - it's the
+// same URL shape Drive's own "get shareable link" feature produces, so it
+// isn't flagged as automated the way a bare API call with a bearer token
+// in the query string apparently is. Large files may show Drive's own
+// "can't scan for viruses" confirmation click-through first - that's
+// normal Drive behavior, not an error.
+export function driveMediaUrl(fileId: string): string {
+  const url = new URL("https://drive.usercontent.google.com/download");
+  url.searchParams.set("id", fileId);
+  url.searchParams.set("export", "download");
+  url.searchParams.set("confirm", "t");
   return url.toString();
 }
 

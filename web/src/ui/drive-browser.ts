@@ -113,7 +113,7 @@ export class DriveBrowser {
     // the bytes ourselves - see driveMediaUrl() for why. A plain tab
     // navigation (not fetch) is what lets the OS take over and survive the
     // app being backgrounded.
-    const url = driveMediaUrl(this.token, item.id);
+    const url = driveMediaUrl(item.id);
     const a = document.createElement("a");
     a.href = url;
     a.target = "_blank";
