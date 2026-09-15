@@ -28,17 +28,28 @@ html, body {
   flex-direction: column;
   height: 100dvh;
   width: 100vw;
+  /* viewport-fit=cover (index.html) draws under the notch/home-indicator/
+     rounded corners on iOS - without this, edge content (the topbar's
+     rightmost buttons especially) can render into that unsafe area and
+     get clipped by the physical screen, not just visually cropped. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .topbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 8px 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   flex: 0 0 auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
+.topbar > * { flex-shrink: 0; }
 
 .topbar h1 {
   font-size: 14px;
