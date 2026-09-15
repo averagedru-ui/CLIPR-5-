@@ -97,14 +97,34 @@ def save_template(tpl: Template, path: str | Path) -> Path:
     return path
 
 
+# Frozen builds run from a PyInstaller temp extraction dir with no repo
+# nearby, so resource_root() is useless there for finding web/. This is a
+# personal single-machine tool (not a distributed product), so a hardcoded
+# fallback to the known dev checkout is the pragmatic choice over building
+# a settings UI for a path that will only ever be this one location -
+# same reasoning already applied elsewhere in this codebase (bundled
+# ffmpeg, git remotes). Update this if the repo ever moves.
+_KNOWN_REPO_ROOT = Path(r"D:\Git-Projects\CLIPR 5")
+
+
+def _mobile_templates_dir() -> Path | None:
+    if not paths.is_frozen():
+        candidate = paths.resource_root() / "web" / "public" / "templates"
+        if candidate.parent.exists():
+            return candidate
+    candidate = _KNOWN_REPO_ROOT / "web" / "public" / "templates"
+    if candidate.parent.exists():
+        return candidate
+    return None
+
+
 def _mirror_to_mobile(path: Path) -> None:
     """Copy a saved .vctpl into web/public/templates so the mobile PWA picks
-    it up on its next deploy - only when running from a dev checkout that
-    has the web/ client alongside it (a no-op for a frozen exe with no repo)."""
-    if paths.is_frozen():
-        return
-    web_dir = paths.resource_root() / "web" / "public" / "templates"
-    if not web_dir.parent.exists():
+    it up on its next deploy (via git push) - whether running from a dev
+    checkout or the packaged exe, as long as the known repo path exists on
+    this machine."""
+    web_dir = _mobile_templates_dir()
+    if web_dir is None:
         return
     try:
         web_dir.mkdir(parents=True, exist_ok=True)

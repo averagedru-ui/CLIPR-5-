@@ -298,12 +298,13 @@ async function openDriveBrowser() {
   }
   const token = await getAccessToken();
   if (!token) return; // getAccessToken() already started a redirect to sign in
-  const browser = new DriveBrowser(token);
-  await browser.open();
-  // Drive hands the actual file off to Safari's own download/media handling
-  // (see drive-browser.ts) rather than fetching it in-page, since iOS kills
-  // a page-driven fetch the moment it's backgrounded. Re-import the result
-  // via the normal "Video" button once it's saved.
+  const browser = new DriveBrowser(token, () => showLoading("drive-dl", "Downloading from Drive…"));
+  const picked = await browser.open();
+  hideLoading("drive-dl");
+  // Small files auto-import (picked is a Blob); large files were handed off
+  // to Safari's own downloader instead (picked is null) - see
+  // drive-browser.ts for why. Re-import via "Video" once saved in that case.
+  if (picked) await loadVideoBlob(picked.blob, picked.name);
 }
 
 btnDrive.addEventListener("click", () => { openDriveBrowser(); });

@@ -1,4 +1,7 @@
-import { listDriveFolder, driveMediaUrl, type DriveItem } from "../drive";
+import {
+  listDriveFolder, driveMediaUrl, downloadDriveFile, getDriveFileMeta,
+  DRIVE_INLINE_MAX_BYTES, type DriveItem, type DriveDownloadResult,
+} from "../drive";
 import { iconFolder, iconFilm } from "./icons";
 
 interface Crumb {
@@ -12,10 +15,12 @@ export class DriveBrowser {
   private listEl: HTMLDivElement;
   private statusEl: HTMLDivElement;
   private statusTextEl: HTMLSpanElement;
+  private cancelEl: HTMLSpanElement;
   private path: Crumb[] = [{ id: "root", name: "My Drive" }];
-  private resolveClose: (() => void) | null = null;
+  private resolvePick: ((r: DriveDownloadResult | null) => void) | null = null;
+  private downloadAbort: AbortController | null = null;
 
-  constructor(private token: string) {
+  constructor(private token: string, private onDownloadStart: () => void) {
     this.backdrop = document.createElement("div");
     this.backdrop.className = "modal-backdrop";
     this.backdrop.innerHTML = `
@@ -28,6 +33,7 @@ export class DriveBrowser {
         <div class="modal-body" data-list></div>
         <div class="drive-status hidden" data-status>
           <span data-status-text></span>
+          <span class="drive-cancel hidden" data-cancel>Cancel</span>
         </div>
       </div>
     `;
@@ -35,23 +41,26 @@ export class DriveBrowser {
     this.listEl = this.backdrop.querySelector("[data-list]")!;
     this.statusEl = this.backdrop.querySelector("[data-status]")!;
     this.statusTextEl = this.backdrop.querySelector("[data-status-text]")!;
-    this.backdrop.querySelector("[data-close]")!.addEventListener("click", () => this.close());
-    this.backdrop.addEventListener("click", (e) => { if (e.target === this.backdrop) this.close(); });
+    this.cancelEl = this.backdrop.querySelector("[data-cancel]")!;
+    this.cancelEl.addEventListener("click", () => this.downloadAbort?.abort());
+    this.backdrop.querySelector("[data-close]")!.addEventListener("click", () => this.close(null));
+    this.backdrop.addEventListener("click", (e) => { if (e.target === this.backdrop) this.close(null); });
   }
 
-  // Resolves once the modal is dismissed (either the user closed it, or a
-  // download was started and the modal closed itself).
-  open(): Promise<void> {
+  // Resolves with a downloaded Blob for the auto-import path (small files),
+  // or null when the modal was dismissed / a large file was handed off to
+  // Safari's own downloader instead (see onItemClick).
+  open(): Promise<DriveDownloadResult | null> {
     document.body.appendChild(this.backdrop);
     this.renderCrumbs();
     this.loadFolder(this.path[this.path.length - 1].id);
-    return new Promise((resolve) => { this.resolveClose = resolve; });
+    return new Promise((resolve) => { this.resolvePick = resolve; });
   }
 
-  private close() {
+  private close(result: DriveDownloadResult | null) {
     this.backdrop.remove();
-    this.resolveClose?.();
-    this.resolveClose = null;
+    this.resolvePick?.(result);
+    this.resolvePick = null;
   }
 
   private renderCrumbs() {
@@ -103,17 +112,60 @@ export class DriveBrowser {
     }
   }
 
-  private onItemClick(item: DriveItem) {
+  private async onItemClick(item: DriveItem) {
     if (item.isFolder) {
       this.path.push({ id: item.id, name: item.name });
       this.renderCrumbs();
       this.loadFolder(item.id);
       return;
     }
-    // Hand off to Safari's own download/media handling instead of fetching
-    // the bytes ourselves - see driveMediaUrl() for why. A plain tab
-    // navigation (not fetch) is what lets the OS take over and survive the
-    // app being backgrounded.
+
+    this.statusEl.classList.remove("hidden");
+    this.statusTextEl.textContent = "Checking file size…";
+    let meta;
+    try {
+      meta = await getDriveFileMeta(this.token, item.id);
+    } catch (err) {
+      this.statusTextEl.textContent = (err as Error).message;
+      return;
+    }
+
+    // Small enough to hold safely in memory: fetch it in-page and
+    // auto-import in one tap, no manual re-select needed afterward.
+    if (meta.size != null && meta.size <= DRIVE_INLINE_MAX_BYTES) {
+      this.onDownloadStart();
+      this.cancelEl.classList.remove("hidden");
+      this.downloadAbort = new AbortController();
+      try {
+        const result = await downloadDriveFile(
+          this.token,
+          item.id,
+          (received, total) => {
+            const mb = (received / (1024 * 1024)).toFixed(1);
+            this.statusTextEl.textContent = total
+              ? `Downloading ${item.name}… ${mb} / ${(total / (1024 * 1024)).toFixed(1)} MB`
+              : `Downloading ${item.name}… ${mb} MB`;
+          },
+          this.downloadAbort.signal
+        );
+        this.close(result);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          this.statusEl.classList.add("hidden");
+        } else {
+          this.statusTextEl.textContent = (err as Error).message;
+        }
+      } finally {
+        this.cancelEl.classList.add("hidden");
+        this.downloadAbort = null;
+      }
+      return;
+    }
+
+    // Large file (or unknown size): a page-driven fetch assembling this
+    // into a Blob is what crashed the Safari tab outright before. Hand the
+    // URL to Safari's own downloader instead - survives backgrounding and
+    // large files, at the cost of a manual re-import step afterward.
     const url = driveMediaUrl(item.id);
     const a = document.createElement("a");
     a.href = url;
@@ -122,12 +174,11 @@ export class DriveBrowser {
     document.body.appendChild(a);
     a.click();
     a.remove();
-
-    this.statusEl.classList.remove("hidden");
     this.statusTextEl.textContent =
-      `Started "${item.name}" in Safari - check the download arrow (or the video player's Share/Save button) ` +
-      `in the toolbar. Once it's saved, come back and use the "Video" button to import it.`;
-    setTimeout(() => this.close(), 3500);
+      `"${item.name}" is large (${meta.size ? (meta.size / (1024 * 1024)).toFixed(0) + " MB" : "size unknown"}) - ` +
+      `started it in Safari instead to avoid a memory crash. Check the download arrow (or the video ` +
+      `player's Share/Save button) in the toolbar, then use "Video" here to import it once saved.`;
+    setTimeout(() => this.close(null), 4500);
   }
 }
 

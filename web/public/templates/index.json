@@ -1,5 +1,12 @@
 [
   {
+    "file": "Active Matter.vctpl",
+    "name": "Active Matter",
+    "game": "Active Matter",
+    "tags": [],
+    "notes": ""
+  },
+  {
     "file": "Apex Legends - Corners.vctpl",
     "name": "Apex Legends - Corners",
     "game": "Apex Legends",
@@ -43,6 +50,13 @@
     "notes": "Regions traced from a real 1920x1080 BF6 frame (minimap BL, ammo BR, weapon-select, right-edge gadgets). Killfeed is a standard-position guess - nudge it once you have a frame with a kill."
   },
   {
+    "file": "BF6 Template 2_0.vctpl",
+    "name": "BF6 Template 2.0",
+    "game": "BF6",
+    "tags": [],
+    "notes": "BF6 Custom"
+  },
+  {
     "file": "Blur Background _ Centered Gameplay.vctpl",
     "name": "Blur Background + Centered Gameplay",
     "game": "",
@@ -50,6 +64,13 @@
       "minimal"
     ],
     "notes": "No HUD regions - the simplest start. Webcam overlay included but disabled."
+  },
+  {
+    "file": "Call of Duty MW4 CORE.vctpl",
+    "name": "Call of Duty MW4 CORE",
+    "game": "Call of Duty Mw4",
+    "tags": [],
+    "notes": ""
   },
   {
     "file": "Fortnite - Minimap _ Materials.vctpl",
@@ -69,6 +90,13 @@
       "generic"
     ],
     "notes": "Four empty corner regions + a disabled webcam overlay."
+  },
+  {
+    "file": "My Template test.vctpl",
+    "name": "My Template test",
+    "game": "",
+    "tags": [],
+    "notes": ""
   },
   {
     "file": "Overwatch - Ults _ Health.vctpl",
@@ -100,6 +128,13 @@
       "rl"
     ],
     "notes": "Generic HUD positions - refine per your UI scale."
+  },
+  {
+    "file": "t.vctpl",
+    "name": "T",
+    "game": "",
+    "tags": [],
+    "notes": ""
   },
   {
     "file": "The Finals - Cashout _ Ammo.vctpl",

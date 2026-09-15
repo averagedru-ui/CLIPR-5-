@@ -216,9 +216,29 @@ export interface DriveDownloadResult {
   name: string;
 }
 
-// Kept for small files where holding the whole thing in memory briefly is
-// fine - not currently used by the Drive browser UI (see driveMediaUrl),
-// but useful if a "small clip, just grab it inline" path is wanted later.
+export interface DriveFileMeta {
+  name: string;
+  size: number | null;
+}
+
+export async function getDriveFileMeta(token: string, fileId: string): Promise<DriveFileMeta> {
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,size`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const data = await res.json();
+  return { name: data.name ?? "drive-video.mp4", size: data.size ? Number(data.size) : null };
+}
+
+// One-tap in-page fetch when the file is small enough that holding it in
+// memory as a Blob is safe - used for the common case (a short/medium
+// clip) so most imports don't need the Safari-handoff detour at all.
+// Above DRIVE_INLINE_MAX_BYTES the caller should fall back to
+// driveMediaUrl() instead: a page-driven fetch assembling a large Blob is
+// what crashed the Safari tab outright on a real multi-hundred-MB
+// gameplay clip (confirmed, not theoretical).
+export const DRIVE_INLINE_MAX_BYTES = 300 * 1024 * 1024; // 300MB
+
 export async function downloadDriveFile(
   token: string,
   fileId: string,
