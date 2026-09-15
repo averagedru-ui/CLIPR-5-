@@ -29,3 +29,4 @@ Thumbs.db
 
 # PyInstaller work dir
 build/clipr/
+build/convert_for_mobile/
