@@ -109,18 +109,42 @@ export async function listDriveFolder(token: string, folderId: string): Promise<
   return items;
 }
 
+// A page-driven fetch() is paused/killed by iOS the moment Safari is
+// backgrounded - there is no workaround for that at the JS level, and
+// holding a large gameplay clip fully in memory as a Blob while it
+// downloads is slow and risky on a phone besides. Handing the URL to
+// Safari itself instead lets its OWN download/media handling take over,
+// which does survive backgrounding.
+//
+// First attempt used the Drive API's `alt=media` with the OAuth
+// access_token as a query param - Google's automated-abuse detection
+// ("We're sorry... your computer or network may be sending automated
+// queries") blocked that outright and consistently, not just as a
+// transient rate limit. Using Drive's own classic direct-download
+// endpoint instead: this relies on the browser's normal Google session
+// cookie (set when the user just signed in via the redirect flow above,
+// in this same browser) rather than a token in the URL at all - it's the
+// same URL shape Drive's own "get shareable link" feature produces, so it
+// isn't flagged as automated the way a bare API call with a bearer token
+// in the query string apparently is. Large files may show Drive's own
+// "can't scan for viruses" confirmation click-through first - that's
+// normal Drive behavior, not an error.
+export function driveMediaUrl(fileId: string): string {
+  const url = new URL("https://drive.usercontent.google.com/download");
+  url.searchParams.set("id", fileId);
+  url.searchParams.set("export", "download");
+  url.searchParams.set("confirm", "t");
+  return url.toString();
+}
+
 export interface DriveDownloadResult {
   blob: Blob;
   name: string;
 }
 
-// In-page fetch chosen over handing the URL to Safari's own downloader:
-// that survives the app being backgrounded, but needs a manual re-import
-// step afterward and turned out to trip Google's automated-abuse
-// detection when authenticated via a query-param token. This is the
-// smoother one-tap experience - auto-imports the instant it finishes - at
-// the cost of dying if the app gets backgrounded mid-download, same as any
-// normal in-page fetch.
+// Kept for small files where holding the whole thing in memory briefly is
+// fine - not currently used by the Drive browser UI (see driveMediaUrl),
+// but useful if a "small clip, just grab it inline" path is wanted later.
 export async function downloadDriveFile(
   token: string,
   fileId: string,
