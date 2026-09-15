@@ -526,5 +526,22 @@ btnExport.addEventListener("click", async () => {
 })();
 
 if ("serviceWorker" in navigator) {
-  // registered by vite-plugin-pwa's virtual module in production builds
+  // vite-plugin-pwa's injected script (registerType: "autoUpdate") handles
+  // the actual registration + auto-activation of a new SW once found, but
+  // browsers only run that *automatic* update check about once every 24h
+  // per registration by spec - exactly what caused "still not seeing my
+  // template" to persist across many same-day redeploys, fixable only by
+  // fully clearing site data (which also signs the user out of Drive - not
+  // acceptable as a routine thing). An explicit registration.update() call
+  // is NOT subject to that throttle and forces a real check immediately.
+  // Doing it on load and whenever the app becomes visible again (PWA
+  // resumed from the background/app-switcher) means a fix is live within
+  // seconds of reopening the app, not up to a day later.
+  const forceSwCheck = () => {
+    navigator.serviceWorker.getRegistration().then((reg) => reg?.update());
+  };
+  window.addEventListener("load", forceSwCheck);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") forceSwCheck();
+  });
 }
