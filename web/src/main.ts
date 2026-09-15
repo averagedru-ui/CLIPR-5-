@@ -9,7 +9,8 @@ import { importVctpl } from "./core/vctpl";
 import { recordComposite, extForMime } from "./export";
 import { driveConfigured, getAccessToken, handleAuthRedirectReturn } from "./drive";
 import { DriveBrowser } from "./ui/drive-browser";
-import { iconVideo, iconDrive, iconTemplate, iconNodes, iconReset, iconPlay, iconPause } from "./ui/icons";
+import { iconVideo, iconDrive, iconTemplate, iconNodes, iconReset, iconPlay, iconPause, iconUndo } from "./ui/icons";
+import { History } from "./core/history";
 import type { Project } from "./core/types";
 
 const app = document.getElementById("app")!;
@@ -54,6 +55,7 @@ app.innerHTML = `
     <div style="display:flex; gap:8px; padding:8px; border-top:1px solid var(--line);">
       <button class="btn" id="btnAddRegion">+ Region</button>
       <button class="btn" id="btnClearRegions">Clear</button>
+      <button class="btn icon" id="btnUndo" disabled title="Undo">${iconUndo}</button>
       <span class="spacer"></span>
       <button class="btn" id="btnSaveProj">Save</button>
     </div>
@@ -106,6 +108,10 @@ function updateTrimUi() {
 }
 
 let project: Project = newProject();
+const history = new History(
+  () => project,
+  (p) => { project = p; graph.setProject(project); drawOnce(); updateUndoBtn(); }
+);
 const compositor = new Compositor(canvas);
 const video = document.createElement("video");
 video.playsInline = true;
@@ -134,7 +140,10 @@ const vfcSupported = typeof (video as any).requestVideoFrameCallback === "functi
 const graph = new NodeGraph(nodeCanvasEl, project, {
   onChange: () => { drawOnce(); },
   onSelect: () => {},
+  onBeforeChange: () => { history.push(); updateUndoBtn(); },
   onDelete: (id) => {
+    history.push();
+    updateUndoBtn();
     project.nodes = project.nodes.filter((n) => n.id !== id);
     graph.setProject(project);
     drawOnce();
@@ -389,6 +398,8 @@ async function openTemplateModal() {
 }
 
 function applyProject(p: Project) {
+  history.push();
+  updateUndoBtn();
   project = p;
   graph.setProject(project);
   drawOnce();
@@ -465,6 +476,8 @@ btnNodes.addEventListener("click", () => {
 });
 
 document.getElementById("btnAddRegion")!.addEventListener("click", () => {
+  history.push();
+  updateUndoBtn();
   addRegion(project);
   graph.setProject(project);
   drawOnce();
@@ -473,10 +486,18 @@ document.getElementById("btnAddRegion")!.addEventListener("click", () => {
 document.getElementById("btnClearRegions")!.addEventListener("click", () => {
   if (!project.nodes.some((n) => n.kind === "region")) return;
   if (!confirm("Remove all regions and show the plain video?")) return;
+  history.push();
+  updateUndoBtn();
   project.nodes = project.nodes.filter((n) => n.kind !== "region");
   graph.setProject(project);
   drawOnce();
 });
+
+const btnUndo = document.getElementById("btnUndo") as HTMLButtonElement;
+function updateUndoBtn() {
+  btnUndo.disabled = !history.canUndo();
+}
+btnUndo.addEventListener("click", () => { history.undo(); });
 
 document.getElementById("btnSaveProj")!.addEventListener("click", async () => {
   await saveProjectLocal("last", project);

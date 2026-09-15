@@ -29,6 +29,7 @@ export const iconFilm = wrap(
 );
 
 export const iconClose = wrap(`<path d="M5 5l14 14M19 5L5 19"/>`);
+export const iconUndo = wrap(`<path d="M7 8L3 12l4 4"/><path d="M3 12h11a6 6 0 0 1 0 12h-2"/>`);
 export const iconReset = wrap(`<path d="M4 12a8 8 0 1 1 2.5 5.8"/><path d="M4 17v-5h5"/>`);
 export const iconPlay = wrap(`<path d="M6 4.5v15l13-7.5z"/>`);
 export const iconPause = wrap(`<rect x="5" y="4" width="5" height="16" rx="1"/><rect x="14" y="4" width="5" height="16" rx="1"/>`);

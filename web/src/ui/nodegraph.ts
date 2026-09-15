@@ -4,6 +4,10 @@ export interface NodeGraphCallbacks {
   onChange: () => void;
   onSelect: (id: string | null) => void;
   onDelete: (id: string) => void;
+  // Called once right before a discrete edit begins (slider drag start,
+  // step-button click) so the caller can snapshot undo state - NOT called
+  // on every 'input' tick during a drag, only once per gesture.
+  onBeforeChange: () => void;
 }
 
 const SHAPES = ["rect", "rounded_rect", "ellipse"] as const;
@@ -295,14 +299,18 @@ export class NodeGraph {
     minus.type = "button";
     minus.className = "step-btn";
     minus.textContent = "−";
-    minus.addEventListener("click", () => commit(parseFloat(input.value) - step));
+    minus.addEventListener("click", () => { this.cb.onBeforeChange(); commit(parseFloat(input.value) - step); });
 
     const plus = document.createElement("button");
     plus.type = "button";
     plus.className = "step-btn";
     plus.textContent = "+";
-    plus.addEventListener("click", () => commit(parseFloat(input.value) + step));
+    plus.addEventListener("click", () => { this.cb.onBeforeChange(); commit(parseFloat(input.value) + step); });
 
+    // Snapshot once per drag gesture (pointerdown), not on every 'input'
+    // tick while dragging - otherwise one slider drag would flood undo
+    // with dozens of near-identical steps.
+    input.addEventListener("pointerdown", () => this.cb.onBeforeChange());
     input.oninput = () => commit(parseFloat(input.value));
 
     track.appendChild(minus);
