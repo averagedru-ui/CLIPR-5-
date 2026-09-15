@@ -262,10 +262,41 @@ html, body {
 
 .row { display: flex; align-items: center; gap: 6px; }
 .row label { font-size: 11px; color: var(--text-dim); width: 62px; flex: 0 0 auto; }
-.row input[type="range"] { flex: 1 1 auto; accent-color: var(--accent); }
 .row input[type="number"] { width: 52px; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 5px; padding: 3px 4px; font-size: 11px; }
 .row select { flex: 1 1 auto; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 5px; padding: 4px; font-size: 11px; }
-.row .val { width: 40px; font-size: 11px; color: var(--tan); text-align: right; flex: 0 0 auto; }
+
+/* Slider rows: label+value on their own line (was getting clipped when
+   crammed alongside the slider), step buttons + slider below. */
+.row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.row-head label { font-size: 11px; color: var(--text-dim); flex: 0 0 auto; }
+.row .val { font-size: 12px; font-weight: 600; color: var(--tan); text-align: right; flex: 0 0 auto; white-space: nowrap; }
+.row-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.row-track input[type="range"] { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+.step-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+}
+.step-btn:active { background: var(--accent-dim); }
 
 .node-canvas-hint {
   position: absolute;

@@ -255,23 +255,60 @@ export class NodeGraph {
     return body;
   }
 
+  // Two-line layout (label+value header, then step buttons flanking the
+  // slider) instead of cramming label+slider+value into one row - on a
+  // 240px card that squeezed the value text down to nothing and clipped it.
+  // Step buttons exist because a touch slider alone is too imprecise to
+  // land on values like an exact 0 rotation or a specific crop edge.
   private slider(label: string, value: number, min: number, max: number, step: number, apply: (v: number) => void): HTMLElement {
-    const r = row(label);
+    const r = document.createElement("div");
+    r.className = "row";
+
+    const head = document.createElement("div");
+    head.className = "row-head";
+    const l = document.createElement("label");
+    l.textContent = label;
+    const val = document.createElement("span");
+    val.className = "val";
+    val.textContent = fmt(value);
+    head.appendChild(l);
+    head.appendChild(val);
+    r.appendChild(head);
+
+    const track = document.createElement("div");
+    track.className = "row-track";
     const input = document.createElement("input");
     input.type = "range";
     input.min = String(min); input.max = String(max); input.step = String(step);
     input.value = String(value);
-    const val = document.createElement("span");
-    val.className = "val";
-    val.textContent = fmt(value);
-    input.oninput = () => {
-      const v = parseFloat(input.value);
+
+    const clamp = (v: number) => Math.min(max, Math.max(min, v));
+    const commit = (v: number) => {
+      v = clamp(Math.round(v / step) * step);
+      input.value = String(v);
       apply(v);
       val.textContent = fmt(v);
       this.cb.onChange();
     };
-    r.appendChild(input);
-    r.appendChild(val);
+
+    const minus = document.createElement("button");
+    minus.type = "button";
+    minus.className = "step-btn";
+    minus.textContent = "−";
+    minus.addEventListener("click", () => commit(parseFloat(input.value) - step));
+
+    const plus = document.createElement("button");
+    plus.type = "button";
+    plus.className = "step-btn";
+    plus.textContent = "+";
+    plus.addEventListener("click", () => commit(parseFloat(input.value) + step));
+
+    input.oninput = () => commit(parseFloat(input.value));
+
+    track.appendChild(minus);
+    track.appendChild(input);
+    track.appendChild(plus);
+    r.appendChild(track);
     return r;
   }
 }
