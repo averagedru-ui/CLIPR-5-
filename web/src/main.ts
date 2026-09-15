@@ -9,17 +9,18 @@ import { importVctpl } from "./core/vctpl";
 import { recordComposite, extForMime } from "./export";
 import { driveConfigured, getAccessToken, handleAuthRedirectReturn } from "./drive";
 import { DriveBrowser } from "./ui/drive-browser";
+import { iconVideo, iconDrive, iconTemplate, iconNodes, iconReset, iconPlay, iconPause } from "./ui/icons";
 import type { Project } from "./core/types";
 
 const app = document.getElementById("app")!;
 app.innerHTML = `
   <div class="topbar">
     <h1>CLIPR</h1>
-    <button class="btn icon" id="btnLoad" title="Load video">📂 Video</button>
-    <button class="btn icon" id="btnDrive" title="Load from Google Drive">🔵 Drive</button>
-    <button class="btn icon" id="btnTpl" title="Import template">🧩 Template</button>
+    <button class="btn icon" id="btnLoad" title="Load video">${iconVideo} Video</button>
+    <button class="btn icon" id="btnDrive" title="Load from Google Drive">${iconDrive} Drive</button>
+    <button class="btn icon" id="btnTpl" title="Import template">${iconTemplate} Template</button>
     <span class="spacer"></span>
-    <button class="btn icon" id="btnNodes" title="Toggle node view">🧠</button>
+    <button class="btn icon" id="btnNodes" title="Toggle node view">${iconNodes}</button>
     <button class="btn primary" id="btnExport" disabled>Export</button>
   </div>
   <div class="preview-wrap">
@@ -31,7 +32,7 @@ app.innerHTML = `
     </div>
   </div>
   <div class="transport">
-    <button class="btn icon" id="btnPlay" disabled>▶</button>
+    <button class="btn icon" id="btnPlay" disabled>${iconPlay}</button>
     <div class="scrub-wrap">
       <div class="trim-overlay" id="trimOverlay"></div>
       <input type="range" id="scrub" min="0" max="1000" value="0" disabled />
@@ -43,7 +44,7 @@ app.innerHTML = `
     <span class="time-label" id="trimLabel">0:00 – 0:00</span>
     <button class="btn icon" id="btnMarkOut" disabled title="Set out point to playhead">Out ]</button>
     <span class="spacer"></span>
-    <button class="btn icon" id="btnTrimReset" disabled title="Reset trim to full clip">↺</button>
+    <button class="btn icon" id="btnTrimReset" disabled title="Reset trim to full clip">${iconReset}</button>
   </div>
   <div class="nodepanel" id="nodePanel">
     <div class="nodecanvas" id="nodeCanvas">
@@ -400,11 +401,11 @@ document.getElementById("btnSaveAsTpl")!.addEventListener("click", async () => {
 });
 
 btnPlay.addEventListener("click", () => {
-  if (video.paused) { video.play(); btnPlay.textContent = "⏸"; }
-  else { video.pause(); btnPlay.textContent = "▶"; }
+  if (video.paused) { video.play(); btnPlay.innerHTML = iconPause; }
+  else { video.pause(); btnPlay.innerHTML = iconPlay; }
 });
-video.addEventListener("pause", () => { btnPlay.textContent = "▶"; drawOnce(); });
-video.addEventListener("play", () => { btnPlay.textContent = "⏸"; });
+video.addEventListener("pause", () => { btnPlay.innerHTML = iconPlay; drawOnce(); });
+video.addEventListener("play", () => { btnPlay.innerHTML = iconPause; });
 
 let scrubbing = false;
 scrub.addEventListener("input", () => {

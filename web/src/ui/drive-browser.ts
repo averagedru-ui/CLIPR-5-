@@ -1,4 +1,5 @@
 import { listDriveFolder, driveMediaUrl, type DriveItem } from "../drive";
+import { iconFolder, iconFilm } from "./icons";
 
 interface Crumb {
   id: string;
@@ -96,7 +97,7 @@ export class DriveBrowser {
     for (const item of items) {
       const row = document.createElement("div");
       row.className = "tpl-item";
-      row.innerHTML = `<div><div class="name">${item.isFolder ? "\u{1F4C1}" : "\u{1F3AC}"} ${escapeHtml(item.name)}</div></div>`;
+      row.innerHTML = `<div class="name">${item.isFolder ? iconFolder : iconFilm} ${escapeHtml(item.name)}</div>`;
       row.addEventListener("click", () => this.onItemClick(item));
       this.listEl.appendChild(row);
     }
