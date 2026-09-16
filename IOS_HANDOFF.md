@@ -296,27 +296,29 @@ when "fix the recording settings" is a one-time zero-cost fix.
   real template's 8-12 regions. Worth the same grid-not-list approach
   natively if using auto-placed cards at all.
 
-## Templates: how "sync from desktop" worked and what changes
+## Templates: how sync between desktop and native works — DECIDED
 
-The desktop app auto-mirrors every saved template into `web/public/templates/`
+**Keep using the existing pipeline as-is, don't rebuild it.** The desktop
+app already auto-mirrors every saved template into `web/public/templates/`
 (`vcomp/templates/io.py`, `_mirror_to_mobile()`) whenever `save_template()`
-runs, which the PWA's Vercel deploy then serves as static JSON. **This
-mechanism is PWA/web-deploy-specific and won't carry over as-is** — a
-native app can't just "redeploy" to pick up a new template file the way a
-website can. Options to figure out with the user:
-1. Bundle templates into the Xcode project (asset catalog / bundled JSON
-   resource) — requires a full rebuild+resideload in Xcode for every new
-   template, which given the 7-day free-sideload expiry (see below) might
-   already be a frequent enough occurrence not to matter, or might be
-   annoying enough to want option 2.
-2. Fetch templates from Google Drive too (the user already grants Drive
-   access for video import) — desktop could mirror templates to a Drive
-   folder instead of/in addition to the git repo, native app lists that
-   folder's `.vctpl` files at runtime. No rebuild needed for new templates.
-3. Some other sync path (iCloud Drive shared container between the two
-   apps doesn't apply since desktop is Windows, not Mac).
+runs; a `git push` deploys that to Vercel, which serves it as plain public
+JSON at `https://clipr-studio.vercel.app/templates/index.json` (manifest:
+`[{file, name, game, tags, notes}, ...]`) and
+`https://clipr-studio.vercel.app/templates/<file>` per template (URL-encode
+the filename - they contain spaces). **No auth needed to fetch these** -
+confirmed via plain unauthenticated `curl` during the PWA's development,
+they're public static files.
 
-Don't assume option 1 is "the" answer — surface this as an open decision
+The native app should just do a normal `URLSession` GET to those same
+URLs to list/fetch templates - full sync chain end to end:
+**desktop save → git push → live on Vercel → native app fetches over
+HTTPS.** This needn't involve Google Drive, app bundling, or a rebuild for
+new templates at all. It's already live and already works; the only
+native-side work is parsing the JSON (same shape documented above) and
+downloading a `.vctpl` file when the user picks a template.
+
+Don't reach for iCloud/Drive/bundling for this - they'd all be reinventing
+something that's already running.
 in the first Xcode-side conversation.
 
 ## Getting set up on the Mac — practical steps
