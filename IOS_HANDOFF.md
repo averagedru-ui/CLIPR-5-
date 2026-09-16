@@ -5,6 +5,21 @@ message in a fresh session, in this cloned repo. It's the domain knowledge
 needed to rebuild the mobile client natively without re-deriving or
 re-breaking things that already got fixed the hard way once.
 
+**This doc is a summary, not the source of truth for exact look/behavior.**
+The actual working PWA is committed in this same repo at `web/` (all
+TypeScript) - when a description below isn't precise enough (exact colors,
+spacing, interaction details, the precise shader math, etc.), **read the
+real source there instead of guessing from this doc's prose.** Particularly:
+`web/src/style.css` (the current neutral-dark/blue-accent palette, sizing),
+`web/src/render/compositor.ts` + `shaders.ts` (the exact region placement
++ shape-mask rendering, WebGL2 but the math translates directly),
+`web/src/main.ts` (overall app flow/state), `web/src/ui/nodegraph.ts` (the
+node-canvas pan/zoom/pinch + slider-with-step-buttons UI), `web/src/drive.ts`
++ `web/src/ui/drive-browser.ts` (the Drive integration this doc describes
+at a high level). If the user says something doesn't "look/run like what we
+built," this is why - go read the actual code, don't re-derive intent from
+memory of this summary.
+
 ## What this project is
 
 CLIPR is a personal (not App Store, not multi-user) tool that reframes 16:9
